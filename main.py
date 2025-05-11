@@ -22,6 +22,7 @@ def get_response_data(input_url):
         exit(1)
     return response_data
 
+
 def main():
     vacancy_data = get_response_data(the_url)["results"]
     print(f"Response data: {vacancy_data}")
