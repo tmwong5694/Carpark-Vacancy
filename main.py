@@ -113,7 +113,6 @@ def get_charges(info_dict):
 def get_tables(info_dict, vacancy_dict):
     """"""
 
-
     # Extract sub-dictionary from the carpark info dictionary first
     address = info_dict.get("address", None)
     rendition_urls = info_dict.get("renditionUrls", None)
@@ -188,7 +187,7 @@ def get_tables(info_dict, vacancy_dict):
         "private_car_spaceEV": private_car.get("spaceEV", None),
         "private_car_spaceDIS": private_car.get("spaceDIS", None),
         "private_car_space": private_car.get("space", None)
-    })
+    }, index=[0])
     lgv = info_dict.get("LGV", None)
     lgv_df = pd.DataFrame({
         "park_id": info_dict.get("park_Id", None),
@@ -225,7 +224,7 @@ def get_tables(info_dict, vacancy_dict):
         "motor_cycle_spaceDIS": motor_cycle.get("spaceDIS", None),
         "motor_cycle_space": motor_cycle.get("space", None)
     }, index=[0])
-    vacancy_df = pd.DataFrame(vacancy)
+    vacancy_df = pd.DataFrame(vacancy, index=[0])
     tables_dict = {
         "info": info_df,
         "weekdays": weekdays_df,
