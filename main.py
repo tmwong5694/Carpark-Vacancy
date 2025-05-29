@@ -106,18 +106,138 @@ def get_charges(info_dict):
             "private_car_period_start": charges_weekend.get("periodStart", None),
             "private_car_period_end": charges_weekend.get("periodEnd", None)
         }
-
-        private_car_space = {
-            "park_id": info_dict.get("park_Id", None),
-            "name": info_dict.get("name", None),
-            "private_car_spaceUNL": private_car.get("spaceUNL", None),
-            "private_car_spaceEV": private_car.get("spaceEV", None),
-            "private_car_spaceDIS": private_car.get("spaceDIS", None),
-            "private_car_space": private_car.get("space", None)
-        }
     except KeyError as keyerror1:
         print(f"The key {keyerror1} is not found!")
-    return private_weekdays, private_weekend, private_car_space
+    return private_weekdays, private_weekend
+
+def get_tables(info_dict, vacancy_dict):
+    """"""
+
+
+    # Extract sub-dictionary from the carpark info dictionary first
+    address = info_dict.get("address", None)
+    rendition_urls = info_dict.get("renditionUrls", None)
+    opening_hours_weekdays = None
+    if not info_dict.get("openingHours", None) is None:
+        opening_hours_weekdays = info_dict["openingHours"][0]
+
+    try:
+        info = {
+            "park_id": info_dict.get("park_Id", None),
+            "name": info_dict.get("name", None),
+            "nature": info_dict.get("nature", None),
+            "carpark_type": info_dict.get("carpark_Type", None),
+            "floor": address.get("floor", None),
+            "building_name": address.get("buildingName", None),
+            "street_name": address.get("streetName", None),
+            "building_no": address.get("buildingNo", None),
+            "sub_district": address.get("subDistrict", None),
+            "dc_district": address.get("dcDistrict", None),
+            "region": address.get("region", None),
+            "address": info_dict.get("displayAddress", None),  # Full address
+            "district": info_dict.get("district", None),
+            "latitude": info_dict.get("latitude", None),
+            "longitude": info_dict.get("longitude", None),
+            "contact_no": info_dict.get("contactNo", None),
+            "square": rendition_urls.get("square", None),
+            "thumbnail": rendition_urls.get("thumbnail", None),
+            "banner": rendition_urls.get("banner", None),
+            "website": info_dict.get("website", None),
+            "opening_status": info_dict.get("opening_status", None),
+            "weekdays_open": opening_hours_weekdays.get("weekdays", None),
+            "exclude_public_holiday": opening_hours_weekdays.get("excludePublicHoliday", None),
+
+            "period_start": opening_hours_weekdays.get("periodStart", None),
+            "period_end": opening_hours_weekdays.get("periodEnd", None),
+            "grace_periods": info_dict.get("gracePeriods", None)[0]["minutes"],
+            "height_limits": info_dict.get("heightLimits", None)[0]["height"],
+            "facilities": info_dict.get("facilities", None),
+            "payment_method": info_dict.get("paymentMethods", None),
+
+            "creation_date": info_dict.get("creationDate", None),
+            "modified_date": info_dict.get("modifiedDate", None),
+            "published_date": info_dict.get("publishedDate", None),
+            "lang": info_dict.get("lang", None),
+        }
+
+    except KeyError as keyerror1:
+        print(f"The key {keyerror1} is not found!")
+
+    # Extract info from the dictionary of carpark vacancy
+    private_car_vacancy = vacancy_dict.get("privateCar", None)[0]
+    try:
+        vacancy = {
+            "park_id": vacancy_dict.get("park_Id", None),
+            "name": info_dict.get("name", None),
+            "vacancy_type": private_car_vacancy.get("vacancy_type", None),
+            # Checkout what does vacancy type = "A" means in the data dict
+            "vacancy": private_car_vacancy.get("vacancy", None),
+            "last_update": private_car_vacancy.get("lastupdate", None)
+        }
+    except KeyError as keyerror2:
+        print(f"The key {keyerror2} is not found!")
+
+    info_df = pd.DataFrame([info])
+    weekdays_df = pd.DataFrame([get_charges(info_dict=info_dict)[0]])
+    weekend_df = pd.DataFrame([get_charges(info_dict=info_dict)[1]])
+    private_car = info_dict.get("privateCar", None)
+    private_car_df = pd.DataFrame({
+        "park_id": info_dict.get("park_Id", None),
+        "name": info_dict.get("name", None),
+        "private_car_spaceUNL": private_car.get("spaceUNL", None),
+        "private_car_spaceEV": private_car.get("spaceEV", None),
+        "private_car_spaceDIS": private_car.get("spaceDIS", None),
+        "private_car_space": private_car.get("space", None)
+    })
+    lgv = info_dict.get("LGV", None)
+    lgv_df = pd.DataFrame({
+        "park_id": info_dict.get("park_Id", None),
+        "name": info_dict.get("name", None),
+        "lgv_spaceUNL": lgv.get("spaceUNL", None),
+        "lgv_spaceEV": lgv.get("spaceEV", None),
+        "lgv_spaceDIS": lgv.get("spaceDIS", None),
+        "lgv_space": lgv.get("space", None)
+    }, index=[0])
+    hgv = info_dict.get("HGV", None)
+    hgv_df = pd.DataFrame({
+        "park_id": info_dict.get("park_Id", None),
+        "name": info_dict.get("name", None),
+        "hgv_spaceUNL": hgv.get("spaceUNL", None),
+        "hgv_spaceEV": hgv.get("spaceEV", None),
+        "hgv_spaceDIS": hgv.get("spaceDIS", None),
+        "hgv_space": hgv.get("space", None)
+    }, index=[0])
+    coach = info_dict.get("coach", None)
+    coach_df = pd.DataFrame({
+        "park_id": info_dict.get("park_Id", None),
+        "name": info_dict.get("name", None),
+        "coach_spaceUNL": coach.get("spaceUNL", None),
+        "coach_spaceEV": coach.get("spaceEV", None),
+        "coach_spaceDIS": coach.get("spaceDIS", None),
+        "coach_space": coach.get("space", None)
+    }, index=[0])
+    motor_cycle = info_dict.get("motorCycle", None)
+    motorcycle_df = pd.DataFrame({
+        "park_id": info_dict.get("park_Id", None),
+        "name": info_dict.get("name", None),
+        "motor_cycle_spaceUNL": motor_cycle.get("spaceUNL", None),
+        "motor_cycle_spaceEV": motor_cycle.get("spaceEV", None),
+        "motor_cycle_spaceDIS": motor_cycle.get("spaceDIS", None),
+        "motor_cycle_space": motor_cycle.get("space", None)
+    }, index=[0])
+    vacancy_df = pd.DataFrame(vacancy)
+    tables_dict = {
+        "info": info_df,
+        "weekdays": weekdays_df,
+        "weekend": weekend_df,
+        "private_car": private_car_df,
+        "lgv": lgv_df,
+        "hgv": hgv_df,
+        "coach": coach_df,
+        "motorcycle": motorcycle_df,
+        "vacancy": vacancy_df
+    }
+    return tables_dict
 
 def main():
     # Define keywords to input into the scraper
@@ -139,117 +259,15 @@ def main():
         print(f"No. of carparks with vacancy and info: {len(scraped_info)}, {len(scraped_vacancy)}")  # 476 carparks
     except Exception as e:
         print(f"An error occurred when calling Scraper.get_dict(): {e}")
-        scraped_vacancy = []
 
     # Store the info and vacancy of the 1st carpark, type: dict
     info_dict, vacancy_dict = scraped_info[0], scraped_vacancy[0]
     print(f"\nInfo data: {info_dict}\nVacancy data: {vacancy_dict}")
 
-    # Extract sub-dictionary from the carpark info dictionary first
-    address = info_dict.get("address", None)
-    rendition_urls = info_dict.get("renditionUrls", None)
-    opening_hours_weekdays = None
-    if not info_dict.get("openingHours", None) is None:
-        opening_hours_weekdays = info_dict["openingHours"][0]
+    tables = get_tables(info_dict=info_dict, vacancy_dict=vacancy_dict)
 
-    try:
-        basic_info = {
-            "park_id": info_dict.get("park_Id", None),
-            "name": info_dict.get("name", None),
-            "nature": info_dict.get("nature", None),
-            "carpark_type": info_dict.get("carpark_Type", None),
-            "floor": address.get("floor", None),
-            "building_name": address.get("buildingName", None),
-            "street_name": address.get("streetName", None),
-            "building_no": address.get("buildingNo", None),
-            "sub_district": address.get("subDistrict", None),
-            "dc_district": address.get("dcDistrict", None),
-            "region": address.get("region", None),
-            "address": info_dict.get("displayAddress", None), # Full address
-            "district": info_dict.get("district", None),
-            "latitude": info_dict.get("latitude", None),
-            "longitude": info_dict.get("longitude", None),
-            "contact_no": info_dict.get("contactNo", None),
-            "square": rendition_urls.get("square", None),
-            "thumbnail": rendition_urls.get("thumbnail", None),
-            "banner": rendition_urls.get("banner", None),
-            "website": info_dict.get("website", None),
-            "opening_status": info_dict.get("opening_status", None),
-            "weekdays_open": opening_hours_weekdays.get("weekdays", None),
-            "exclude_public_holiday": opening_hours_weekdays.get("excludePublicHoliday", None),
+    scraped_text = Scraper().openurl()
 
-
-            "period_start": opening_hours_weekdays.get("periodStart", None),
-            "period_end": opening_hours_weekdays.get("periodEnd", None),
-            "grace_periods": info_dict.get("gracePeriods", None)[0]["minutes"],
-            "height_limits": info_dict.get("heightLimits", None)[0]["height"],
-            "facilities": info_dict.get("facilities", None),
-            "payment_method": info_dict.get("paymentMethods", None),
-
-            "creation_date": info_dict.get("creationDate", None),
-            "modified_date": info_dict.get("modifiedDate", None),
-            "published_date": info_dict.get("publishedDate", None),
-            "lang": info_dict.get("lang", None),
-        }
-
-    except KeyError as keyerror1:
-        print(f"The key {keyerror1} is not found!")
-
-    # Extract info from the dictionary of carpark vacancy
-    private_car_vacancy = vacancy_dict.get("privateCar", None)[0]
-    try:
-        vacancy= {
-            "park_id": vacancy_dict.get("park_Id", None),
-            "name": info_dict.get("name", None),
-            "vacancy_type": private_car_vacancy.get("vacancy_type", None), # Checkout what does vacancy type = "A" means in the data dict
-            "vacancy": private_car_vacancy.get("vacancy", None),
-            "last_update": private_car_vacancy.get("lastupdate", None)
-        }
-    except KeyError as keyerror2:
-        print(f"The key {keyerror2} is not found!")
-
-    df_info = pd.DataFrame([info_dict])
-    df_weekdays = pd.DataFrame([get_charges(info_dict=info_dict)[0]])
-    df_weekend = pd.DataFrame([get_charges(info_dict=info_dict)[1]])
-    df_private = pd.DataFrame([get_charges(info_dict=info_dict)[2]])
-    lgv = info_dict.get("LGV", None)
-    df_lgv = pd.DataFrame({
-        "park_id": info_dict.get("park_Id", None),
-        "name": info_dict.get("name", None),
-        "lgv_spaceUNL": lgv.get("spaceUNL", None),
-        "lgv_spaceEV": lgv.get("spaceEV", None),
-        "lgv_spaceDIS": lgv.get("spaceDIS", None),
-        "lgv_space": lgv.get("space", None)
-    }, index=[0])
-    hgv = info_dict.get("HGV", None)
-    df_hgv = pd.DataFrame({
-        "park_id": info_dict.get("park_Id", None),
-        "name": info_dict.get("name", None),
-        "hgv_spaceUNL": hgv.get("spaceUNL", None),
-        "hgv_spaceEV": hgv.get("spaceEV", None),
-        "hgv_spaceDIS": hgv.get("spaceDIS", None),
-        "hgv_space": hgv.get("space", None)
-    }, index=[0])
-    coach = info_dict.get("coach", None)
-    df_coach = pd.DataFrame({
-        "park_id": info_dict.get("park_Id", None),
-        "name": info_dict.get("name", None),
-        "coach_spaceUNL": coach.get("spaceUNL", None),
-        "coach_spaceEV": coach.get("spaceEV", None),
-        "coach_spaceDIS": coach.get("spaceDIS", None),
-        "coach_space": coach.get("space", None)
-    }, index=[0])
-    motor_cycle = info_dict.get("motorCycle", None)
-    df_motorcycle = pd.DataFrame({
-        "park_id": info_dict.get("park_Id", None),
-        "name": info_dict.get("name", None),
-        "motor_cycle_spaceUNL": motor_cycle.get("spaceUNL", None),
-        "motor_cycle_spaceEV": motor_cycle.get("spaceEV", None),
-        "motor_cycle_spaceDIS": motor_cycle.get("spaceDIS", None),
-        "motor_cycle_space": motor_cycle.get("space", None)
-    }, index=[0])
-
-    df_vacancy = pd.DataFrame([vacancy])
 
     print("End of main()")
 
