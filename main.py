@@ -1,8 +1,10 @@
-from urllib.request import urlopen
 import json
 import pandas as pd
+import re
 import sys
 from Scraper import *
+from bs4 import BeautifulSoup
+from urllib.request import urlopen
 
 the_url = "https://api.data.gov.hk/v1/carpark-info-vacancy?data=vacancy&vehicleTypes=privateCar&lang=zh_TW"
 
@@ -180,51 +182,51 @@ def get_tables(info_dict, vacancy_dict):
     weekdays_df = pd.DataFrame([get_charges(info_dict=info_dict)[0]])
     weekend_df = pd.DataFrame([get_charges(info_dict=info_dict)[1]])
     private_car = info_dict.get("privateCar", None)
-    private_car_df = pd.DataFrame({
+    private_car_df = pd.DataFrame([{
         "park_id": info_dict.get("park_Id", None),
         "name": info_dict.get("name", None),
         "private_car_spaceUNL": private_car.get("spaceUNL", None),
         "private_car_spaceEV": private_car.get("spaceEV", None),
         "private_car_spaceDIS": private_car.get("spaceDIS", None),
         "private_car_space": private_car.get("space", None)
-    }, index=[0])
+    }])
     lgv = info_dict.get("LGV", None)
-    lgv_df = pd.DataFrame({
+    lgv_df = pd.DataFrame([{
         "park_id": info_dict.get("park_Id", None),
         "name": info_dict.get("name", None),
         "lgv_spaceUNL": lgv.get("spaceUNL", None),
         "lgv_spaceEV": lgv.get("spaceEV", None),
         "lgv_spaceDIS": lgv.get("spaceDIS", None),
         "lgv_space": lgv.get("space", None)
-    }, index=[0])
+    }])
     hgv = info_dict.get("HGV", None)
-    hgv_df = pd.DataFrame({
+    hgv_df = pd.DataFrame([{
         "park_id": info_dict.get("park_Id", None),
         "name": info_dict.get("name", None),
         "hgv_spaceUNL": hgv.get("spaceUNL", None),
         "hgv_spaceEV": hgv.get("spaceEV", None),
         "hgv_spaceDIS": hgv.get("spaceDIS", None),
         "hgv_space": hgv.get("space", None)
-    }, index=[0])
+    }])
     coach = info_dict.get("coach", None)
-    coach_df = pd.DataFrame({
+    coach_df = pd.DataFrame([{
         "park_id": info_dict.get("park_Id", None),
         "name": info_dict.get("name", None),
         "coach_spaceUNL": coach.get("spaceUNL", None),
         "coach_spaceEV": coach.get("spaceEV", None),
         "coach_spaceDIS": coach.get("spaceDIS", None),
         "coach_space": coach.get("space", None)
-    }, index=[0])
+    }])
     motor_cycle = info_dict.get("motorCycle", None)
-    motorcycle_df = pd.DataFrame({
+    motorcycle_df = pd.DataFrame([{
         "park_id": info_dict.get("park_Id", None),
         "name": info_dict.get("name", None),
         "motor_cycle_spaceUNL": motor_cycle.get("spaceUNL", None),
         "motor_cycle_spaceEV": motor_cycle.get("spaceEV", None),
         "motor_cycle_spaceDIS": motor_cycle.get("spaceDIS", None),
         "motor_cycle_space": motor_cycle.get("space", None)
-    }, index=[0])
-    vacancy_df = pd.DataFrame(vacancy, index=[0])
+    }])
+    vacancy_df = pd.DataFrame([vacancy])
     tables_dict = {
         "info": info_df,
         "weekdays": weekdays_df,
@@ -265,7 +267,12 @@ def main():
 
     tables = get_tables(info_dict=info_dict, vacancy_dict=vacancy_dict)
 
-    scraped_text = Scraper().openurl()
+    holiday_url = "https://www.gov.hk/en/about/abouthk/holiday/2025.htm"
+    html_content = Scraper(url=holiday_url, decode="utf-8").openurl()
+    soup = BeautifulSoup(html_content, "html.parser")
+
+    scraped_list = soup.find(class_="blockItem")
+    print(scraped_list.prettify())
 
 
     print("End of main()")
