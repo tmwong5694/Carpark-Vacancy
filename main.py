@@ -112,7 +112,7 @@ def get_charges(info_dict):
         print(f"The key {keyerror1} is not found!")
     return private_weekdays, private_weekend
 
-def get_tables(info_dict, vacancy_dict):
+def get_carpark_json(info_dict, vacancy_dict):
     """"""
 
     # Extract sub-dictionary from the carpark info dictionary first
@@ -123,7 +123,7 @@ def get_tables(info_dict, vacancy_dict):
         opening_hours_weekdays = info_dict["openingHours"][0]
 
     try:
-        info = {
+        info_json = {
             "park_id": info_dict.get("park_Id", None),
             "name": info_dict.get("name", None),
             "nature": info_dict.get("nature", None),
@@ -167,7 +167,7 @@ def get_tables(info_dict, vacancy_dict):
     # Extract info from the dictionary of carpark vacancy
     private_car_vacancy = vacancy_dict.get("privateCar", None)[0]
     try:
-        vacancy = {
+        vacancy_json = {
             "park_id": vacancy_dict.get("park_Id", None),
             "name": info_dict.get("name", None),
             "vacancy_type": private_car_vacancy.get("vacancy_type", None),
@@ -178,9 +178,10 @@ def get_tables(info_dict, vacancy_dict):
     except KeyError as keyerror2:
         print(f"The key {keyerror2} is not found!")
 
-    info_df = pd.DataFrame([info])
+    info_df = pd.DataFrame([info_json])
     weekdays_df = pd.DataFrame([get_charges(info_dict=info_dict)[0]])
     weekend_df = pd.DataFrame([get_charges(info_dict=info_dict)[1]])
+
     private_car = info_dict.get("privateCar", None)
     private_car_df = pd.DataFrame([{
         "park_id": info_dict.get("park_Id", None),
@@ -226,8 +227,8 @@ def get_tables(info_dict, vacancy_dict):
         "motor_cycle_spaceDIS": motor_cycle.get("spaceDIS", None),
         "motor_cycle_space": motor_cycle.get("space", None)
     }])
-    vacancy_df = pd.DataFrame([vacancy])
-    tables_dict = {
+    vacancy_df = pd.DataFrame([vacancy_json])
+    carpark_dict = {
         "info": info_df,
         "weekdays": weekdays_df,
         "weekend": weekend_df,
@@ -238,7 +239,7 @@ def get_tables(info_dict, vacancy_dict):
         "motorcycle": motorcycle_df,
         "vacancy": vacancy_df
     }
-    return tables_dict
+    return carpark_dict
 
 def main():
     # Define keywords to input into the scraper
@@ -265,18 +266,34 @@ def main():
     info_dict, vacancy_dict = scraped_info[0], scraped_vacancy[0]
     print(f"\nInfo data: {info_dict}\nVacancy data: {vacancy_dict}")
 
-    tables = get_tables(info_dict=info_dict, vacancy_dict=vacancy_dict)
+    tables = get_carpark_json(info_dict=info_dict, vacancy_dict=vacancy_dict)
 
     holiday_url = "https://www.gov.hk/en/about/abouthk/holiday/2025.htm"
     html_content = Scraper(url=holiday_url, decode="utf-8").openurl()
-    soup = BeautifulSoup(html_content, "html.parser")
+    soup = BeautifulSoup(html_content, features="html.parser")
 
-    scraped_list = soup.find(class_="blockItem")
-    print(scraped_list.prettify())
+    scraped_list = soup.find_all("table")
 
 
     print("End of main()")
 
 if __name__ == "__main__":
-    main()
+    # main()
+    def get_public_holiday():
+        # Define a ph_dict to hold all the public holidays
+        ph_dict = {}
+        holiday_url = "https://www.gov.hk/en/about/abouthk/holiday/2025.htm"
+        html_content = Scraper(url=holiday_url, decode="utf-8").openurl()
+        soup = BeautifulSoup(html_content, features="html.parser")
+        table = soup.find_all("table")[0]
+        table_rows = table.find_all("tr")
+
+        def get_table_data(table_row_input):
+            """Get the table data from a table row"""
+            table_data = table_row_input.find_all("td")
+            return table_data
+        lst = [*map(get_table_data, table_rows)]
+        return
+    get_public_holiday()
+
     print("End of program.")
