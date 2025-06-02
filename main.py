@@ -291,9 +291,10 @@ if __name__ == "__main__":
         def get_table_data(table_row_input):
             """Get the table data from a table row"""
             table_data = table_row_input.find_all("td")
-            return table_data
-        lst = [*map(get_table_data, table_rows)]
-        return
+            name, date, weekday = table_data[0].get_text(strip=True), table_data[1].get_text(strip=True), table_data[2].get_text(strip=True)
+            return name, date, weekday
+        tuple_list = [*map(get_table_data, table_rows)]
+        return tuple_list
     get_public_holiday()
 
     print("End of program.")
