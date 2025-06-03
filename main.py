@@ -1,3 +1,4 @@
+from datetime import datetime
 import json
 import numpy as np
 import pandas as pd
@@ -282,7 +283,6 @@ if __name__ == "__main__":
     # main()
     def get_public_holiday():
         # Define a ph_dict to hold all the public holidays
-        ph_dict = {}
         holiday_url = "https://www.gov.hk/en/about/abouthk/holiday/2025.htm"
         html_content = Scraper(url=holiday_url, decode="utf-8").openurl()
         soup = BeautifulSoup(html_content, features="html.parser")
@@ -296,6 +296,9 @@ if __name__ == "__main__":
             return np.array((name, date, weekday), dtype="U50")
         tuple_list = np.asarray([*map(get_table_data, table_rows)], dtype="U50")
         return tuple_list
-    ph_list = get_public_holiday()
+
+    ph_table = get_public_holiday()
+    ph_table[:, 1] = [*map(lambda x: datetime.strptime(x, "%d %B").replace(year=2025) if x != "" else x, ph_table[:, 1])]
+
 
     print("End of program.")
