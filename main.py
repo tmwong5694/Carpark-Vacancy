@@ -1,4 +1,5 @@
 import json
+import numpy as np
 import pandas as pd
 import re
 import sys
@@ -292,9 +293,9 @@ if __name__ == "__main__":
             """Get the table data from a table row"""
             table_data = table_row_input.find_all("td")
             name, date, weekday = table_data[0].get_text(strip=True), table_data[1].get_text(strip=True), table_data[2].get_text(strip=True)
-            return name, date, weekday
-        tuple_list = [*map(get_table_data, table_rows)]
+            return np.array((name, date, weekday), dtype="U50")
+        tuple_list = np.asarray([*map(get_table_data, table_rows)], dtype="U50")
         return tuple_list
-    get_public_holiday()
+    ph_list = get_public_holiday()
 
     print("End of program.")
