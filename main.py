@@ -7,32 +7,22 @@ import sys
 from Scraper import *
 from bs4 import BeautifulSoup
 from urllib.request import urlopen
+import urllib
+
 
 the_url = "https://api.data.gov.hk/v1/carpark-info-vacancy?data=vacancy&vehicleTypes=privateCar&lang=zh_TW"
 
 class CarparkScraper(Scraper):
-    def __init__(self, data: str="info", vehicle_types: str="privateCar", lang: str="zh_TW", carpark_ids=None, extent=None):
-        self.data = data
-        self.vehicle_types = vehicle_types
-        self.lang = lang
-        self.carpark_ids = carpark_ids
-        self.extent = extent
+    def __init__(self):
+        pass
 
-    def get_response_data(self) -> dict:
+    def get_response_data(self, data: str="info", vehicle_types: str="privateCar", lang: str="zh_TW", carpark_ids=None, extent=None, ) -> dict:
         """
         https://api.data.gov.hk/v1/carpark-info-vacancy?data=<param>&vehicleTypes=<param>&carparkIds=<param>&extent=<param>&lang=<param>
         data = "info" or "vacancy"
         vehicleTypes = "privateCar", "LGV", "HGV", "CV", "coach", "motorCycle"
         lang = "en_US", "zh_TW", "zh_CN"
         """
-        def check_type() -> None:
-            """Check the type of input"""
-            if not isinstance(self.data, str):
-                raise TypeError(f"Input should be of string type. Got {type(self.data)}.")
-            if not isinstance(self.vehicle_types, str):
-                raise TypeError(f"Input should be of string type. Got {type(self.vehicle_types)}.")
-            if not isinstance(self.lang, str):
-                raise TypeError(f"Input should be of string type. Got {type(self.lang)}.")
 
         def check_input() -> None:
             """Validate the input of params"""
@@ -41,30 +31,30 @@ class CarparkScraper(Scraper):
                 "vehicleTypes": ["privateCar", "LGV", "HGV", "CV", "coach", "motorCycle"],
                 "lang": ["en_US", "zh_TW", "zh_CN"]
             }
-            if not self.data in input_choice["data"]:
-                raise ValueError(f"Input should be one of {self.input_choice['data']}. Got {self.data}.")
-            if not self.vehicle_types in input_choice["vehicleTypes"]:
-                raise ValueError(f"Input should be one of {self.input_choice['vehicleTypes']}. Got {self.data}.")
-            if not self.lang in input_choice["lang"]:
-                raise ValueError(f"Input should be one of {self.input_choice['lang']}. Got {self.data}.")
+            if not data in input_choice["data"]:
+                raise ValueError(f"Input should be one of {input_choice['data']}. Got {data}.")
+            if not vehicle_types in input_choice["vehicleTypes"]:
+                raise ValueError(f"Input should be one of {input_choice['vehicleTypes']}. Got {data}.")
+            if not lang in input_choice["lang"]:
+                raise ValueError(f"Input should be one of {input_choice['lang']}. Got {data}.")
 
-        check_type()
         check_input()
 
         # Get response from the Carpark Vacancy API
-        if self.carpark_ids is None and self.extent is None:
-            input_url = f"https://api.data.gov.hk/v1/carpark-info-vacancy?data={self.data}&vehicleTypes={self.vehicle_types}&lang={self.lang}"
-        elif not self.carpark_ids is None and self.extent is None:
-            input_url = f"https://api.data.gov.hk/v1/carpark-info-vacancy?data={self.data}&vehicleTypes={self.vehicle_types}&carparkIds={self.carpark_ids}&lang={self.lang}"
-        elif self.carpark_ids is None and not self.extent is None:
-            input_url = f"https://api.data.gov.hk/v1/carpark-info-vacancy?data={self.data}&vehicleTypes={self.vehicle_types}&extent={self.extent}&lang={self.lang}"
+        if carpark_ids is None and extent is None:
+            ####
+            input_url = f"https://api.data.gov.hk/v1/carpark-info-vacancy?data={data}&vehicleTypes={vehicle_types}&lang={lang}"
+        elif not carpark_ids is None and extent is None:
+            input_url = f"https://api.data.gov.hk/v1/carpark-info-vacancy?data={data}&vehicleTypes={vehicle_types}&carparkIds={carpark_ids}&lang={lang}"
+        elif carpark_ids is None and not extent is None:
+            input_url = f"https://api.data.gov.hk/v1/carpark-info-vacancy?data={data}&vehicleTypes={vehicle_types}&extent={extent}&lang={lang}"
         try:
             with urlopen(input_url) as response:
                 response_data = response.read().decode("utf-8")
                 response_data = json.loads(response_data)  # Parse the response data
             print("Response code:", response.getcode())
-        except:
-            print("Error: Unable to connect to the API.")
+        except urllib.error.HTTPError as HTTPError:
+            print(f"Error: Unable to connect to the API:\n{HTTPError}")
             exit(1)
         return response_data["results"]
 
@@ -243,6 +233,35 @@ def get_carpark_json(info_dict, vacancy_dict):
     }
     return carpark_dict
 
+def get_public_holiday():
+    # Define a ph_dict to hold all the public holidays
+    holiday_url = "https://www.gov.hk/en/about/abouthk/holiday/2025.htm"
+    html_content = Scraper(url=holiday_url, decode="utf-8").openurl()
+    soup = BeautifulSoup(html_content, features="html.parser")
+    table = soup.find_all("table")[0]
+    table_rows = table.find_all("tr")
+
+    def get_table_data(table_row_input):
+        """Get the table data from a table row"""
+        table_data = table_row_input.find_all("td")
+        name, date, weekday = [*map(lambda x: x.get_text(strip=True), table_data)]
+        return np.array((name, date, weekday), dtype="U50")
+
+    ph_array = np.asarray([*map(get_table_data, table_rows)], dtype="U50")
+
+    def convert_date(x):
+        """Convert date string to datetime object"""
+        if x != "":
+            return datetime.strptime(x, "%d %B").replace(year=2025)
+        else:
+            return x
+    vectorized_convert_date = np.vectorize(convert_date)
+
+    mask = ph_array[:, 1] != ""
+    ph_array[:, 1][mask] = vectorized_convert_date(ph_array[:, 1][mask])
+
+    return ph_array
+
 def main():
     # Define keywords to input into the scraper
     data, vehicle_types, lang = "info", "privateCar", "zh_TW"
@@ -281,38 +300,11 @@ def main():
 
 if __name__ == "__main__":
     # main()
-    def get_public_holiday():
-        # Define a ph_dict to hold all the public holidays
-        holiday_url = "https://www.gov.hk/en/about/abouthk/holiday/2025.htm"
-        html_content = Scraper(url=holiday_url, decode="utf-8").openurl()
-        soup = BeautifulSoup(html_content, features="html.parser")
-        table = soup.find_all("table")[0]
-        table_rows = table.find_all("tr")
 
-        def get_table_data(table_row_input):
-            """Get the table data from a table row"""
-            table_data = table_row_input.find_all("td")
-            name, date, weekday = [*map(lambda x: x.get_text(strip=True), table_data)]
-            return np.array((name, date, weekday), dtype="U50")
-
-        ph_array = np.asarray([*map(get_table_data, table_rows)], dtype="U50")
-
-        def convert_date(x):
-            """Convert date string to datetime object"""
-            if x != "":
-                return datetime.strptime(x, "%d %B").replace(year=2025)
-            else:
-                return x
-        vectorized_convert_date = np.vectorize(convert_date)
-
-        mask = ph_array[:, 1] != ""
-        ph_array[:, 1][mask] = vectorized_convert_date(ph_array[:, 1][mask])
-
-        return ph_array
-
-
+    scraper = CarparkScraper()
+    data, vacancy = scraper.get_response_data(), scraper.get_response_data(data="vacancy")
     ph_table = get_public_holiday()
-    print(ph_table)
+    # print(ph_table)
 
 
     print("End of program.")
