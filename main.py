@@ -292,13 +292,27 @@ if __name__ == "__main__":
         def get_table_data(table_row_input):
             """Get the table data from a table row"""
             table_data = table_row_input.find_all("td")
-            name, date, weekday = table_data[0].get_text(strip=True), table_data[1].get_text(strip=True), table_data[2].get_text(strip=True)
+            name, date, weekday = [*map(lambda x: x.get_text(strip=True), table_data)]
             return np.array((name, date, weekday), dtype="U50")
-        tuple_list = np.asarray([*map(get_table_data, table_rows)], dtype="U50")
-        return tuple_list
+
+        ph_array = np.asarray([*map(get_table_data, table_rows)], dtype="U50")
+
+        def convert_date(x):
+            """Convert date string to datetime object"""
+            if x != "":
+                return datetime.strptime(x, "%d %B").replace(year=2025)
+            else:
+                return x
+        vectorized_convert_date = np.vectorize(convert_date)
+
+        mask = ph_array[:, 1] != ""
+        ph_array[:, 1][mask] = vectorized_convert_date(ph_array[:, 1][mask])
+
+        return ph_array
+
 
     ph_table = get_public_holiday()
-    ph_table[:, 1] = [*map(lambda x: datetime.strptime(x, "%d %B").replace(year=2025) if x != "" else x, ph_table[:, 1])]
+    print(ph_table)
 
 
     print("End of program.")
