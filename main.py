@@ -66,13 +66,17 @@ def get_charges(info_dict):
         for hourly_charge in private_car.get("hourlyCharges"):
             weekdays = {*map(str.lower, hourly_charge.get("weekdays"))}
             # Store this as weekday charges if any element in weekdays contains "mon", "tue", "wed", "thu", "fri"
-            if len(weekdays.intersection({"mon", "tue", "wed", "thu", "fri"})) > 0:
+            if len(weekdays & set(("mon", "tue", "wed", "thu", "fri", "sat", "sun", "ph"))) == 8:
+                print("It does not count weekdays and weekend separately.")
+                break
+            elif len(weekdays & set(("mon", "tue", "wed", "thu", "fri"))) > 0:
                 charges_weekdays = hourly_charge
             # Store this as weekday charges if any element in weekdays contains "sat", "sun", "ph"
-            elif len(weekdays.intersection({"sat", "sun", "ph"})) > 0:
+            elif len(weekdays & set(("sat", "sun", "ph"))) > 0:
                 charges_weekend = hourly_charge
             else:
-                charges_weekdays, charges_weekend = None
+                charges_weekdays, charges_weekend = None, None
+
     try:
         private_weekdays = {
             "park_id": info_dict.get("park_Id"),
@@ -113,11 +117,7 @@ def get_carpark_json(info_dict, vacancy_dict):
     """"""
 
     # Extract sub-dictionary from the carpark info dictionary first
-    address = info_dict.get("address")
-    rendition_urls = info_dict.get("renditionUrls")
-    opening_hours_weekdays = None
-    if not info_dict.get("openingHours") is None:
-        opening_hours_weekdays = info_dict["openingHours"][0]
+
 
     try:
         info_json = {
@@ -125,42 +125,90 @@ def get_carpark_json(info_dict, vacancy_dict):
             "name": info_dict.get("name"),
             "nature": info_dict.get("nature"),
             "carpark_type": info_dict.get("carpark_Type"),
-            "floor": address.get("floor"),
-            "building_name": address.get("buildingName"),
-            "street_name": address.get("streetName"),
-            "building_no": address.get("buildingNo"),
-            "sub_district": address.get("subDistrict"),
-            "dc_district": address.get("dcDistrict"),
-            "region": address.get("region"),
             "address": info_dict.get("displayAddress"),  # Full address
             "district": info_dict.get("district"),
             "latitude": info_dict.get("latitude"),
             "longitude": info_dict.get("longitude"),
             "contact_no": info_dict.get("contactNo"),
-            "square": rendition_urls.get("square"),
-            "thumbnail": rendition_urls.get("thumbnail"),
-            "banner": rendition_urls.get("banner"),
-            "website": info_dict.get("website"),
             "opening_status": info_dict.get("opening_status"),
-            "weekdays_open": opening_hours_weekdays.get("weekdays"),
-            "exclude_public_holiday": opening_hours_weekdays.get("excludePublicHoliday"),
-
-            "period_start": opening_hours_weekdays.get("periodStart"),
-            "period_end": opening_hours_weekdays.get("periodEnd"),
-            "grace_periods": info_dict.get("gracePeriods")[0]["minutes"],
-            "height_limits": info_dict.get("heightLimits")[0]["height"],
+            # "grace_periods": info_dict.get("gracePeriods")[0]["minutes"],
+            # "height_limits": info_dict.get("heightLimits")[0]["height"],
             "facilities": info_dict.get("facilities"),
             "payment_method": info_dict.get("paymentMethods"),
-
             "creation_date": info_dict.get("creationDate"),
             "modified_date": info_dict.get("modifiedDate"),
             "published_date": info_dict.get("publishedDate"),
             "lang": info_dict.get("lang"),
+            "website": info_dict.get("website")
         }
 
     except KeyError as keyerror1:
         print(f"The key {keyerror1} is not found!")
 
+    info_json["grace_periods"] = None
+    if not info_dict.get("gracePeriods") is None:
+        info_json["grace_periods"] = info_dict.get("gracePeriods")[0]["minutes"]
+    # try:
+    #     info_json["grace_periods"] = info_dict.get("gracePeriods")[0]["minutes"]
+    # except TypeError as TypeError_:
+    #     print(f"TypeError: {TypeError_}. The grace_periods is not available in the info_dict.")
+    info_json["height_limits"] = None
+    if not info_dict.get("heightLimits") is None:
+        info_json["height_limits"] = info_dict.get("heightLimits")[0]["height"]
+    # try:
+    #     info_json["height_limits"] = info_dict.get("heightLimits")[0]["height"]
+    # except TypeError as TypeError_:
+    #     print(f"TypeError: {TypeError_}. The height_limits is not available in the info_dict.")
+
+    address = info_dict.get("address")
+    if not address is None:
+        info_json["floor"] = address.get("floor")
+        info_json["building_name"] = address.get("buildingName")
+        info_json["street_name"] = address.get("streetName")
+        info_json["building_no"] = address.get("buildingNo")
+        info_json["sub_district"] = address.get("subDistrict")
+        info_json["dc_district"] = address.get("dcDistrict")
+        info_json["region"] = address.get("region")
+
+    # try:
+    #     info_json["floor"] = address.get("floor")
+    #     info_json["building_name"] = address.get("buildingName")
+    #     info_json["street_name"] = address.get("streetName")
+    #     info_json["building_no"] = address.get("buildingNo")
+    #     info_json["sub_district"] = address.get("subDistrict")
+    #     info_json["dc_district"] = address.get("dcDistrict")
+    #     info_json["region"] = address.get("region")
+    # except AttributeError as AttributeError_:
+    #     print(f"AttributeError: {AttributeError_}. The address is not available in the info_dict.")
+
+    rendition_urls = info_dict.get("renditionUrls")
+    if not rendition_urls is None:
+        info_json["square"] = rendition_urls.get("square")
+        info_json["thumbnail"] = rendition_urls.get("thumbnail")
+        info_json["banner"] = rendition_urls.get("banner")
+    # try:
+    #     info_json["square"] = rendition_urls.get("square")
+    #     info_json["thumbnail"] = rendition_urls.get("thumbnail")
+    #     info_json["banner"] = rendition_urls.get("banner")
+    # except AttributeError as AttributeError_:
+    #     print(f"AttributeError: {AttributeError_}. The rendition_urls is not available in the info_dict.")
+
+    # opening_hours_weekdays = None
+    # grace_periods = info_dict.get("gracePeriods")
+    if not info_dict.get("openingHours") is None:
+        opening_hours_weekdays = info_dict["openingHours"][0]
+        info_json["weekdays_open"]: opening_hours_weekdays.get("weekdays")
+        info_json["exclude_public_holiday"]: opening_hours_weekdays.get("excludePublicHoliday")
+        info_json["period_start"]: opening_hours_weekdays.get("periodStart")
+        info_json["period_end"]: opening_hours_weekdays.get("periodEnd")
+
+    # try:
+    #     info_json["weekdays_open"]: opening_hours_weekdays.get("weekdays")
+    #     info_json["exclude_public_holiday"]: opening_hours_weekdays.get("excludePublicHoliday")
+    #     info_json["period_start"]: opening_hours_weekdays.get("periodStart")
+    #     info_json["period_end"]: opening_hours_weekdays.get("periodEnd")
+    # except AttributeError as AttributeError_:
+    #     print(f"AttributeError: {AttributeError_}. The opening_hours_weekdays is not available in the info_dict.")
 
     # Extract info from the dictionary of carpark vacancy
     private_car_vacancy = vacancy_dict.get("privateCar")[0]
@@ -233,10 +281,11 @@ def get_carpark_json(info_dict, vacancy_dict):
     #     "motorcycle": motorcycle_df,
     #     "vacancy": vacancy_df
     # }
+    charges = get_charges(info_dict=info_dict)
     carpark_dict = {
         "info": info_json,
-        "charges_weekdays": get_charges(info_dict=info_dict)["weekdays"],
-        "charges_weekend": get_charges(info_dict=info_dict)["weekend"],
+        "charges_weekdays": charges["weekdays"],
+        "charges_weekend": charges["weekend"],
         "private_car": private_car_json,
         "lgv": lgv_json,
         "hgv": hgv_json,
@@ -323,20 +372,23 @@ def main():
 
     info_list, charges_weekdays_list, charges_weekend_list, private_car_list, lgv_list = [], [], [], [], []
     hgv_list, coach_list, motorcycle_list, vacancy_list = [], [], [], []
-    for _ in range(len(data)):
+    # for _ in range(len(data)):
+    for _ in range(2):
+        print(f"Current carpark index is {_}:")
+        single_data, single_vacancy = data[_], vacancy[_]
         # Get the carpark info
-        info_list.append(get_carpark_json(data[_], vacancy[_])["info"])
+        info_list.append(get_carpark_json(single_data, single_vacancy)["info"])
         # Get the charges for weekdays and weekends
-        charges_weekdays_list.append(get_carpark_json(data[_], vacancy[_])["charges_weekdays"])
-        charges_weekend_list.append(get_carpark_json(data[_], vacancy[_])["charges_weekend"])
+        charges_weekdays_list.append(get_carpark_json(single_data, single_vacancy)["charges_weekdays"])
+        charges_weekend_list.append(get_carpark_json(single_data, single_vacancy)["charges_weekend"])
         # Get the private car, LGV, HGV, coach and motorcycle info
-        private_car_list.append(get_carpark_json(data[_], vacancy[_])["private_car"])
-        lgv_list.append(get_carpark_json(data[_], vacancy[_])["lgv"])
-        hgv_list.append(get_carpark_json(data[_], vacancy[_])["hgv"])
-        coach_list.append(get_carpark_json(data[_], vacancy[_])["coach"])
-        motorcycle_list.append(get_carpark_json(data[_], vacancy[_])["motorcycle"])
+        private_car_list.append(get_carpark_json(single_data, single_vacancy)["private_car"])
+        lgv_list.append(get_carpark_json(single_data, single_vacancy)["lgv"])
+        hgv_list.append(get_carpark_json(single_data, single_vacancy)["hgv"])
+        coach_list.append(get_carpark_json(single_data, single_vacancy)["coach"])
+        motorcycle_list.append(get_carpark_json(single_data, single_vacancy)["motorcycle"])
         # Get the vacancy info
-        vacancy_list.append(get_carpark_json(data[_], vacancy[_])["vacancy"])
+        vacancy_list.append(get_carpark_json(single_data, single_vacancy)["vacancy"])
 
     info_df = pd.DataFrame(info_list)
     charges_weekdays_df = pd.DataFrame(charges_weekdays_list)
