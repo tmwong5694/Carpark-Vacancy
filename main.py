@@ -62,23 +62,20 @@ def get_charges(info_dict):
     # Get information on the weekdays and weekend charges
     private_car = info_dict.get("privateCar")
     if not private_car.get("hourlyCharges") is None:
-
-        ##### Consider situation where there is only one hourly_charge
         # Iterate through the list of hourly_charges
         for hourly_charge in private_car.get("hourlyCharges"):
+
+            private_weekdays, private_weekend, private_all_time = None, None, None
             weekdays = {*map(str.lower, hourly_charge.get("weekdays"))}
             # Store this as weekday charges if any element in weekdays contains "mon", "tue", "wed", "thu", "fri"
             if len(weekdays & set(("mon", "tue", "wed", "thu", "fri", "sat", "sun", "ph"))) == 8:
-                print("It does not count weekdays and weekend separately.")
-                break
+                charges_all_time, charges_weekend, charges_weekdays = hourly_charge, None, None
             elif len(weekdays & set(("mon", "tue", "wed", "thu", "fri"))) == 5:
-                charges_weekdays = hourly_charge
+                charges_weekdays, charges_all_time = hourly_charge, None
             # Store this as weekday charges if any element in weekdays contains "sat", "sun", "ph"
             elif len(weekdays & set(("sat", "sun", "ph"))) == 3:
-                charges_weekend = hourly_charge
-            else:
-                charges_weekdays, charges_weekend = None, None
-                break
+                charges_weekend, charges_all_time = hourly_charge, None
+
 
     if not charges_weekdays is None:
         private_weekdays = {
@@ -110,9 +107,26 @@ def get_charges(info_dict):
             "private_car_period_end": charges_weekend.get("periodEnd")
         }
 
+    if not charges_all_time is None:
+        private_all_time = {
+            "park_id": info_dict.get("park_Id"),
+            "name": info_dict.get("name"),
+            "private_car_all_time": charges_all_time.get("weekdays"),
+            "private_car_exclude_ph": charges_all_time.get("excludePublicHoliday"),
+            "private_car_remark": charges_all_time.get("remark"),
+            "private_car_usage_min": charges_all_time.get("usageMinimum"),
+            "private_car_covered": charges_all_time.get("covered"),
+            "private_car_type": charges_all_time.get("type"),
+            "private_car_price": charges_all_time.get("price"),
+            "private_car_period_start": charges_all_time.get("periodStart"),
+            "private_car_period_end": charges_all_time.get("periodEnd")
+        }
+
+
     charges_dict = {
         "weekdays": private_weekdays,
-        "weekend": private_weekend
+        "weekend": private_weekend,
+        "all_time": private_all_time
     }
     return charges_dict
 
@@ -134,8 +148,6 @@ def get_carpark_json(info_dict, vacancy_dict):
             "longitude": info_dict.get("longitude"),
             "contact_no": info_dict.get("contactNo"),
             "opening_status": info_dict.get("opening_status"),
-            # "grace_periods": info_dict.get("gracePeriods")[0]["minutes"],
-            # "height_limits": info_dict.get("heightLimits")[0]["height"],
             "facilities": info_dict.get("facilities"),
             "payment_method": info_dict.get("paymentMethods"),
             "creation_date": info_dict.get("creationDate"),
@@ -151,17 +163,10 @@ def get_carpark_json(info_dict, vacancy_dict):
     info_json["grace_periods"] = None
     if not info_dict.get("gracePeriods") is None:
         info_json["grace_periods"] = info_dict.get("gracePeriods")[0]["minutes"]
-    # try:
-    #     info_json["grace_periods"] = info_dict.get("gracePeriods")[0]["minutes"]
-    # except TypeError as TypeError_:
-    #     print(f"TypeError: {TypeError_}. The grace_periods is not available in the info_dict.")
+
     info_json["height_limits"] = None
     if not info_dict.get("heightLimits") is None:
         info_json["height_limits"] = info_dict.get("heightLimits")[0]["height"]
-    # try:
-    #     info_json["height_limits"] = info_dict.get("heightLimits")[0]["height"]
-    # except TypeError as TypeError_:
-    #     print(f"TypeError: {TypeError_}. The height_limits is not available in the info_dict.")
 
     address = info_dict.get("address")
     if not address is None:
@@ -173,45 +178,18 @@ def get_carpark_json(info_dict, vacancy_dict):
         info_json["dc_district"] = address.get("dcDistrict")
         info_json["region"] = address.get("region")
 
-    # try:
-    #     info_json["floor"] = address.get("floor")
-    #     info_json["building_name"] = address.get("buildingName")
-    #     info_json["street_name"] = address.get("streetName")
-    #     info_json["building_no"] = address.get("buildingNo")
-    #     info_json["sub_district"] = address.get("subDistrict")
-    #     info_json["dc_district"] = address.get("dcDistrict")
-    #     info_json["region"] = address.get("region")
-    # except AttributeError as AttributeError_:
-    #     print(f"AttributeError: {AttributeError_}. The address is not available in the info_dict.")
-
     rendition_urls = info_dict.get("renditionUrls")
     if not rendition_urls is None:
         info_json["square"] = rendition_urls.get("square")
         info_json["thumbnail"] = rendition_urls.get("thumbnail")
         info_json["banner"] = rendition_urls.get("banner")
-    # try:
-    #     info_json["square"] = rendition_urls.get("square")
-    #     info_json["thumbnail"] = rendition_urls.get("thumbnail")
-    #     info_json["banner"] = rendition_urls.get("banner")
-    # except AttributeError as AttributeError_:
-    #     print(f"AttributeError: {AttributeError_}. The rendition_urls is not available in the info_dict.")
 
-    # opening_hours_weekdays = None
-    # grace_periods = info_dict.get("gracePeriods")
     if not info_dict.get("openingHours") is None:
         opening_hours_weekdays = info_dict["openingHours"][0]
         info_json["weekdays_open"]: opening_hours_weekdays.get("weekdays")
         info_json["exclude_public_holiday"]: opening_hours_weekdays.get("excludePublicHoliday")
         info_json["period_start"]: opening_hours_weekdays.get("periodStart")
         info_json["period_end"]: opening_hours_weekdays.get("periodEnd")
-
-    # try:
-    #     info_json["weekdays_open"]: opening_hours_weekdays.get("weekdays")
-    #     info_json["exclude_public_holiday"]: opening_hours_weekdays.get("excludePublicHoliday")
-    #     info_json["period_start"]: opening_hours_weekdays.get("periodStart")
-    #     info_json["period_end"]: opening_hours_weekdays.get("periodEnd")
-    # except AttributeError as AttributeError_:
-    #     print(f"AttributeError: {AttributeError_}. The opening_hours_weekdays is not available in the info_dict.")
 
     # Extract info from the dictionary of carpark vacancy
     private_car_vacancy = vacancy_dict.get("privateCar")[0]
@@ -273,22 +251,12 @@ def get_carpark_json(info_dict, vacancy_dict):
         "motor_cycle_space": motor_cycle.get("space")
     }
 
-    # carpark_dict = {
-    #     "info": info_df,
-    #     "charges_weekdays": weekdays_df,
-    #     "charges_weekend": weekend_df,
-    #     "private_car": private_car_df,
-    #     "lgv": lgv_df,
-    #     "hgv": hgv_df,
-    #     "coach": coach_df,
-    #     "motorcycle": motorcycle_df,
-    #     "vacancy": vacancy_df
-    # }
     charges = get_charges(info_dict=info_dict)
     carpark_dict = {
         "info": info_json,
         "charges_weekdays": charges["weekdays"],
         "charges_weekend": charges["weekend"],
+        "charges_all_time": charges["all_time"],
         "private_car": private_car_json,
         "lgv": lgv_json,
         "hgv": hgv_json,
