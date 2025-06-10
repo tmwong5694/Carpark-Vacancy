@@ -62,6 +62,8 @@ def get_charges(info_dict):
     # Get information on the weekdays and weekend charges
     private_car = info_dict.get("privateCar")
     if not private_car.get("hourlyCharges") is None:
+
+        ##### Consider situation where there is only one hourly_charge
         # Iterate through the list of hourly_charges
         for hourly_charge in private_car.get("hourlyCharges"):
             weekdays = {*map(str.lower, hourly_charge.get("weekdays"))}
@@ -69,15 +71,16 @@ def get_charges(info_dict):
             if len(weekdays & set(("mon", "tue", "wed", "thu", "fri", "sat", "sun", "ph"))) == 8:
                 print("It does not count weekdays and weekend separately.")
                 break
-            elif len(weekdays & set(("mon", "tue", "wed", "thu", "fri"))) > 0:
+            elif len(weekdays & set(("mon", "tue", "wed", "thu", "fri"))) == 5:
                 charges_weekdays = hourly_charge
             # Store this as weekday charges if any element in weekdays contains "sat", "sun", "ph"
-            elif len(weekdays & set(("sat", "sun", "ph"))) > 0:
+            elif len(weekdays & set(("sat", "sun", "ph"))) == 3:
                 charges_weekend = hourly_charge
             else:
                 charges_weekdays, charges_weekend = None, None
+                break
 
-    try:
+    if not charges_weekdays is None:
         private_weekdays = {
             "park_id": info_dict.get("park_Id"),
             "name": info_dict.get("name"),
@@ -91,6 +94,8 @@ def get_charges(info_dict):
             "private_car_period_start": charges_weekdays.get("periodStart"),
             "private_car_period_end": charges_weekdays.get("periodEnd")
         }
+
+    if not charges_weekend is None:
         private_weekend = {
             "park_id": info_dict.get("park_Id"),
             "name": info_dict.get("name"),
@@ -104,8 +109,6 @@ def get_charges(info_dict):
             "private_car_period_start": charges_weekend.get("periodStart"),
             "private_car_period_end": charges_weekend.get("periodEnd")
         }
-    except KeyError as keyerror1:
-        print(f"The key {keyerror1} is not found!")
 
     charges_dict = {
         "weekdays": private_weekdays,
@@ -366,7 +369,7 @@ def main():
     ph_table = get_public_holiday()
 
 
-    hello = get_carpark_json(data[0], vacancy[0])
+    # hello = get_carpark_json(data[0], vacancy[0])
 
     cols = ["park_id", "name", "nature", "carpark_type", "floor", "building_name", "street_name", "building_no", "sub_district", "dc_district"]
 
@@ -376,19 +379,21 @@ def main():
     for _ in range(2):
         print(f"Current carpark index is {_}:")
         single_data, single_vacancy = data[_], vacancy[_]
+        carpark_json = get_carpark_json(single_data, single_vacancy)
+
         # Get the carpark info
-        info_list.append(get_carpark_json(single_data, single_vacancy)["info"])
+        info_list.append(carpark_json["info"])
         # Get the charges for weekdays and weekends
-        charges_weekdays_list.append(get_carpark_json(single_data, single_vacancy)["charges_weekdays"])
-        charges_weekend_list.append(get_carpark_json(single_data, single_vacancy)["charges_weekend"])
+        charges_weekdays_list.append(carpark_json["charges_weekdays"])
+        charges_weekend_list.append(carpark_json["charges_weekend"])
         # Get the private car, LGV, HGV, coach and motorcycle info
-        private_car_list.append(get_carpark_json(single_data, single_vacancy)["private_car"])
-        lgv_list.append(get_carpark_json(single_data, single_vacancy)["lgv"])
-        hgv_list.append(get_carpark_json(single_data, single_vacancy)["hgv"])
-        coach_list.append(get_carpark_json(single_data, single_vacancy)["coach"])
-        motorcycle_list.append(get_carpark_json(single_data, single_vacancy)["motorcycle"])
+        private_car_list.append(carpark_json["private_car"])
+        lgv_list.append(carpark_json["lgv"])
+        hgv_list.append(carpark_json["hgv"])
+        coach_list.append(carpark_json["coach"])
+        motorcycle_list.append(carpark_json["motorcycle"])
         # Get the vacancy info
-        vacancy_list.append(get_carpark_json(single_data, single_vacancy)["vacancy"])
+        vacancy_list.append(carpark_json["vacancy"])
 
     info_df = pd.DataFrame(info_list)
     charges_weekdays_df = pd.DataFrame(charges_weekdays_list)
