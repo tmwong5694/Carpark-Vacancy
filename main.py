@@ -64,8 +64,8 @@ def get_charges(info_dict):
     if not private_car.get("hourlyCharges") is None:
         # Iterate through the list of hourly_charges
         for hourly_charge in private_car.get("hourlyCharges"):
-
-            private_weekdays, private_weekend, private_all_time = None, None, None
+            empty_dict = {"name": info_dict.get("name"), "park_id": info_dict.get("park_Id")}
+            private_weekdays, private_weekend, private_all_time = [empty_dict for _ in range(3)]
             weekdays = {*map(str.lower, hourly_charge.get("weekdays"))}
             # Store this as weekday charges if any element in weekdays contains "mon", "tue", "wed", "thu", "fri"
             if len(weekdays & set(("mon", "tue", "wed", "thu", "fri", "sat", "sun", "ph"))) == 8:
@@ -134,8 +134,6 @@ def get_carpark_json(info_dict, vacancy_dict):
     """"""
 
     # Extract sub-dictionary from the carpark info dictionary first
-
-
     try:
         info_json = {
             "park_id": info_dict.get("park_Id"),
@@ -296,37 +294,6 @@ def get_public_holiday():
     return ph_array
 
 def main():
-    # # Define keywords to input into the scraper
-    # data, vehicle_types, lang = "info", "privateCar", "zh_TW"
-    # info_url = f"https://api.data.gov.hk/v1/carpark-info-vacancy?data={data}&vehicleTypes={vehicle_types}&lang={lang}"
-    # data = "vacancy"
-    # vacancy_url = f"https://api.data.gov.hk/v1/carpark-info-vacancy?data={data}&vehicleTypes={vehicle_types}&lang={lang}"
-    # info_scraper, vacancy_scraper = Scraper(url=info_url, decode="utf-8"), Scraper(url=vacancy_url, decode="utf-8")
-    #
-    # try:
-    #     scraped_info = info_scraper.get_dict()["results"]
-    #     print(json.dumps(scraped_info, indent=2))
-    # except Exception as e:
-    #     print(f"An error occurred when calling Scraper.get_dict(): {e}")
-    #     scraped_info = []
-    # try:
-    #     scraped_vacancy = vacancy_scraper.get_dict()["results"]
-    #     print(json.dumps(scraped_vacancy, indent=2))
-    #     print(f"No. of carparks with vacancy and info: {len(scraped_info)}, {len(scraped_vacancy)}")  # 476 carparks
-    # except Exception as e:
-    #     print(f"An error occurred when calling Scraper.get_dict(): {e}")
-    #
-    # # Store the info and vacancy of the 1st carpark, type: dict
-    # info_dict, vacancy_dict = scraped_info[0], scraped_vacancy[0]
-    # print(f"\nInfo data: {info_dict}\nVacancy data: {vacancy_dict}")
-    #
-    # tables = get_carpark_json(info_dict=info_dict, vacancy_dict=vacancy_dict)
-    #
-    # holiday_url = "https://www.gov.hk/en/about/abouthk/holiday/2025.htm"
-    # html_content = Scraper(url=holiday_url, decode="utf-8").openurl()
-    # soup = BeautifulSoup(html_content, features="html.parser")
-    #
-    # scraped_list = soup.find_all("table")
 
     # Initialize CarparkScraper
     cp_scraper = CarparkScraper()
@@ -337,14 +304,12 @@ def main():
     ph_table = get_public_holiday()
 
 
-    # hello = get_carpark_json(data[0], vacancy[0])
-
     cols = ["park_id", "name", "nature", "carpark_type", "floor", "building_name", "street_name", "building_no", "sub_district", "dc_district"]
 
-    info_list, charges_weekdays_list, charges_weekend_list, private_car_list, lgv_list = [], [], [], [], []
-    hgv_list, coach_list, motorcycle_list, vacancy_list = [], [], [], []
-    # for _ in range(len(data)):
-    for _ in range(2):
+    info_list, charges_weekdays_list, charges_weekend_list, charges_all_time_list, private_car_list, lgv_list = [[] for _ in range(6)]
+    hgv_list, coach_list, motorcycle_list, vacancy_list = [[] for _ in range(4)]
+    for _ in range(len(data)):
+    # for _ in range(2):
         print(f"Current carpark index is {_}:")
         single_data, single_vacancy = data[_], vacancy[_]
         carpark_json = get_carpark_json(single_data, single_vacancy)
@@ -354,6 +319,7 @@ def main():
         # Get the charges for weekdays and weekends
         charges_weekdays_list.append(carpark_json["charges_weekdays"])
         charges_weekend_list.append(carpark_json["charges_weekend"])
+        charges_all_time_list.append(carpark_json["charges_all_time"])
         # Get the private car, LGV, HGV, coach and motorcycle info
         private_car_list.append(carpark_json["private_car"])
         lgv_list.append(carpark_json["lgv"])
@@ -366,6 +332,7 @@ def main():
     info_df = pd.DataFrame(info_list)
     charges_weekdays_df = pd.DataFrame(charges_weekdays_list)
     charges_weekend_df = pd.DataFrame(charges_weekend_list)
+    charges_all_time_df = pd.DataFrame(charges_all_time_list)
     private_car_df = pd.DataFrame(private_car_list)
     lgv_df = pd.DataFrame(lgv_list)
     hgv_df = pd.DataFrame(hgv_list)
