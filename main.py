@@ -62,73 +62,24 @@ def get_charges(info_dict):
     # Get information on the weekdays and weekend charges
     private_car = info_dict.get("privateCar")
     if not private_car.get("hourlyCharges") is None:
+        charges = []
         # Iterate through the list of hourly_charges
         for hourly_charge in private_car.get("hourlyCharges"):
-            empty_dict = {"name": info_dict.get("name"), "park_id": info_dict.get("park_Id")}
-            private_weekdays, private_weekend, private_all_time = [empty_dict for _ in range(3)]
-            weekdays = {*map(str.lower, hourly_charge.get("weekdays"))}
-            # Store this as weekday charges if any element in weekdays contains "mon", "tue", "wed", "thu", "fri"
-            if len(weekdays & set(("mon", "tue", "wed", "thu", "fri", "sat", "sun", "ph"))) == 8:
-                charges_all_time, charges_weekend, charges_weekdays = hourly_charge, None, None
-            elif len(weekdays & set(("mon", "tue", "wed", "thu", "fri"))) == 5:
-                charges_weekdays, charges_all_time = hourly_charge, None
-            # Store this as weekday charges if any element in weekdays contains "sat", "sun", "ph"
-            elif len(weekdays & set(("sat", "sun", "ph"))) == 3:
-                charges_weekend, charges_all_time = hourly_charge, None
-
-
-    if not charges_weekdays is None:
-        private_weekdays = {
-            "park_id": info_dict.get("park_Id"),
-            "name": info_dict.get("name"),
-            "private_car_weekdays": charges_weekdays.get("weekdays"),
-            "private_car_exclude_ph": charges_weekdays.get("excludePublicHoliday"),
-            "private_car_remark": charges_weekdays.get("remark"),
-            "private_car_usage_min": charges_weekdays.get("usageMinimum"),
-            "private_car_covered": charges_weekdays.get("covered"),
-            "private_car_type": charges_weekdays.get("type"),
-            "private_car_price": charges_weekdays.get("price"),
-            "private_car_period_start": charges_weekdays.get("periodStart"),
-            "private_car_period_end": charges_weekdays.get("periodEnd")
-        }
-
-    if not charges_weekend is None:
-        private_weekend = {
-            "park_id": info_dict.get("park_Id"),
-            "name": info_dict.get("name"),
-            "private_car_weekends": charges_weekend.get("weekdays"),
-            "private_car_exclude_ph": charges_weekend.get("excludePublicHoliday"),
-            "private_car_remark": charges_weekend.get("remark"),
-            "private_car_covered": charges_weekend.get("covered"),
-            "private_car_type": charges_weekend.get("type"),
-            "private_car_usage_min": charges_weekend.get("usageMinimum"),
-            "private_car_price": charges_weekend.get("price"),
-            "private_car_period_start": charges_weekend.get("periodStart"),
-            "private_car_period_end": charges_weekend.get("periodEnd")
-        }
-
-    if not charges_all_time is None:
-        private_all_time = {
-            "park_id": info_dict.get("park_Id"),
-            "name": info_dict.get("name"),
-            "private_car_all_time": charges_all_time.get("weekdays"),
-            "private_car_exclude_ph": charges_all_time.get("excludePublicHoliday"),
-            "private_car_remark": charges_all_time.get("remark"),
-            "private_car_usage_min": charges_all_time.get("usageMinimum"),
-            "private_car_covered": charges_all_time.get("covered"),
-            "private_car_type": charges_all_time.get("type"),
-            "private_car_price": charges_all_time.get("price"),
-            "private_car_period_start": charges_all_time.get("periodStart"),
-            "private_car_period_end": charges_all_time.get("periodEnd")
-        }
-
-
-    charges_dict = {
-        "weekdays": private_weekdays,
-        "weekend": private_weekend,
-        "all_time": private_all_time
-    }
-    return charges_dict
+            charge = {
+                "park_id": info_dict.get("park_Id"),
+                "name": info_dict.get("name"),
+                "weekdays": hourly_charge.get("weekdays"),
+                "exclude_ph": hourly_charge.get("excludePublicHoliday"),
+                "remark": hourly_charge.get("remark"),
+                "usage_minimum": hourly_charge.get("usageMinimum"),
+                "covered": hourly_charge.get("covered"),
+                "type": hourly_charge.get("type"),
+                "price": hourly_charge.get("price"),
+                "period_start": hourly_charge.get("periodStart"),
+                "period_end": hourly_charge.get("periodEnd")
+            }
+            charges.append(charge)
+    return charges
 
 def get_carpark_json(info_dict, vacancy_dict):
     """"""
@@ -206,12 +157,17 @@ def get_carpark_json(info_dict, vacancy_dict):
     private_car = info_dict.get("privateCar")
     private_car_json = {
         "park_id": info_dict.get("park_Id"),
-        "name": info_dict.get("name"),
-        "private_car_spaceUNL": private_car.get("spaceUNL"),
-        "private_car_spaceEV": private_car.get("spaceEV"),
-        "private_car_spaceDIS": private_car.get("spaceDIS"),
-        "private_car_space": private_car.get("space")
+        "name": info_dict.get("name")
     }
+    if not private_car is None:
+        private_car_json = {
+            "park_id": info_dict.get("park_Id"),
+            "name": info_dict.get("name"),
+            "private_car_spaceUNL": private_car.get("spaceUNL"),
+            "private_car_spaceEV": private_car.get("spaceEV"),
+            "private_car_spaceDIS": private_car.get("spaceDIS"),
+            "private_car_space": private_car.get("space")
+        }
     lgv = info_dict.get("LGV")
     lgv_json = {
         "park_id": info_dict.get("park_Id"),
@@ -252,9 +208,9 @@ def get_carpark_json(info_dict, vacancy_dict):
     charges = get_charges(info_dict=info_dict)
     carpark_dict = {
         "info": info_json,
-        "charges_weekdays": charges["weekdays"],
-        "charges_weekend": charges["weekend"],
-        "charges_all_time": charges["all_time"],
+        "charges": charges,
+        # "charges_weekend": charges["weekend"],
+        # "charges_all_time": charges["all_time"],
         "private_car": private_car_json,
         "lgv": lgv_json,
         "hgv": hgv_json,
@@ -306,20 +262,18 @@ def main():
 
     cols = ["park_id", "name", "nature", "carpark_type", "floor", "building_name", "street_name", "building_no", "sub_district", "dc_district"]
 
-    info_list, charges_weekdays_list, charges_weekend_list, charges_all_time_list, private_car_list, lgv_list = [[] for _ in range(6)]
+    # info_list, charges_weekdays_list, charges_weekend_list, charges_all_time_list, private_car_list, lgv_list = [[] for _ in range(6)]
+    info_list, charges_list, private_car_list, lgv_list = [[] for _ in range(4)]
     hgv_list, coach_list, motorcycle_list, vacancy_list = [[] for _ in range(4)]
-    for _ in range(len(data)):
-    # for _ in range(2):
+    # for _ in range(len(data)):
+    for _ in range(27):
         print(f"Current carpark index is {_}:")
         single_data, single_vacancy = data[_], vacancy[_]
         carpark_json = get_carpark_json(single_data, single_vacancy)
 
         # Get the carpark info
         info_list.append(carpark_json["info"])
-        # Get the charges for weekdays and weekends
-        charges_weekdays_list.append(carpark_json["charges_weekdays"])
-        charges_weekend_list.append(carpark_json["charges_weekend"])
-        charges_all_time_list.append(carpark_json["charges_all_time"])
+        charges_list.append(carpark_json["charges"])
         # Get the private car, LGV, HGV, coach and motorcycle info
         private_car_list.append(carpark_json["private_car"])
         lgv_list.append(carpark_json["lgv"])
@@ -330,9 +284,7 @@ def main():
         vacancy_list.append(carpark_json["vacancy"])
 
     info_df = pd.DataFrame(info_list)
-    charges_weekdays_df = pd.DataFrame(charges_weekdays_list)
-    charges_weekend_df = pd.DataFrame(charges_weekend_list)
-    charges_all_time_df = pd.DataFrame(charges_all_time_list)
+    charges_df = pd.DataFrame(charges_list)
     private_car_df = pd.DataFrame(private_car_list)
     lgv_df = pd.DataFrame(lgv_list)
     hgv_df = pd.DataFrame(hgv_list)
@@ -345,13 +297,5 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-    # cp_scraper = CarparkScraper()
-    # data, vacancy = cp_scraper.get_response_data(), cp_scraper.get_response_data(data="vacancy")
-    #
-    #
-    # ph_table = get_public_holiday()
-    # print(ph_table)
-
 
     print("End of program.")
