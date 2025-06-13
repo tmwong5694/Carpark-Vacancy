@@ -61,6 +61,9 @@ class CarparkScraper(Scraper):
 def get_charges(info_dict):
     # Get information on the weekdays and weekend charges
     private_car = info_dict.get("privateCar")
+    if private_car is None:
+        print(f"There is no private car information in the carpark info dictionary: {info_dict.get('park_Id')}")
+        return [{"park_id": info_dict.get("park_Id"), "name": info_dict.get("name")}]
     if not private_car.get("hourlyCharges") is None:
         charges = []
         # Iterate through the list of hourly_charges
@@ -154,11 +157,16 @@ def get_carpark_json(info_dict, vacancy_dict):
     except KeyError as keyerror2:
         print(f"The key {keyerror2} is not found!")
 
-    private_car = info_dict.get("privateCar")
-    private_car_json = {
+    private_car_json, lgv_json, hgv_json, coach_json, motorcycle_json = [{
         "park_id": info_dict.get("park_Id"),
         "name": info_dict.get("name")
-    }
+    } for _ in range(5)]
+
+    private_car = info_dict.get("privateCar")
+    # private_car_json = {
+    #     "park_id": info_dict.get("park_Id"),
+    #     "name": info_dict.get("name")
+    # }
     if not private_car is None:
         private_car_json = {
             "park_id": info_dict.get("park_Id"),
@@ -169,41 +177,49 @@ def get_carpark_json(info_dict, vacancy_dict):
             "private_car_space": private_car.get("space")
         }
     lgv = info_dict.get("LGV")
-    lgv_json = {
-        "park_id": info_dict.get("park_Id"),
-        "name": info_dict.get("name"),
-        "lgv_spaceUNL": lgv.get("spaceUNL"),
-        "lgv_spaceEV": lgv.get("spaceEV"),
-        "lgv_spaceDIS": lgv.get("spaceDIS"),
-        "lgv_space": lgv.get("space")
-    }
+    # lgv_json = {
+    #     "park_id": info_dict.get("park_Id"),
+    #     "name": info_dict.get("name")
+    # }
+    if not lgv is None:
+        lgv_json = {
+            "park_id": info_dict.get("park_Id"),
+            "name": info_dict.get("name"),
+            "lgv_spaceUNL": lgv.get("spaceUNL"),
+            "lgv_spaceEV": lgv.get("spaceEV"),
+            "lgv_spaceDIS": lgv.get("spaceDIS"),
+            "lgv_space": lgv.get("space")
+        }
     hgv = info_dict.get("HGV")
-    hgv_json = {
-        "park_id": info_dict.get("park_Id"),
-        "name": info_dict.get("name"),
-        "hgv_spaceUNL": hgv.get("spaceUNL"),
-        "hgv_spaceEV": hgv.get("spaceEV"),
-        "hgv_spaceDIS": hgv.get("spaceDIS"),
-        "hgv_space": hgv.get("space")
-    }
+    if not hgv is None:
+        hgv_json = {
+            "park_id": info_dict.get("park_Id"),
+            "name": info_dict.get("name"),
+            "hgv_spaceUNL": hgv.get("spaceUNL"),
+            "hgv_spaceEV": hgv.get("spaceEV"),
+            "hgv_spaceDIS": hgv.get("spaceDIS"),
+            "hgv_space": hgv.get("space")
+        }
     coach = info_dict.get("coach")
-    coach_json = {
-        "park_id": info_dict.get("park_Id"),
-        "name": info_dict.get("name"),
-        "coach_spaceUNL": coach.get("spaceUNL"),
-        "coach_spaceEV": coach.get("spaceEV"),
-        "coach_spaceDIS": coach.get("spaceDIS"),
-        "coach_space": coach.get("space")
-    }
+    if not coach is None:
+        coach_json = {
+            "park_id": info_dict.get("park_Id"),
+            "name": info_dict.get("name"),
+            "coach_spaceUNL": coach.get("spaceUNL"),
+            "coach_spaceEV": coach.get("spaceEV"),
+            "coach_spaceDIS": coach.get("spaceDIS"),
+            "coach_space": coach.get("space")
+        }
     motor_cycle = info_dict.get("motorCycle")
-    motorcycle_json = {
-        "park_id": info_dict.get("park_Id"),
-        "name": info_dict.get("name"),
-        "motor_cycle_spaceUNL": motor_cycle.get("spaceUNL"),
-        "motor_cycle_spaceEV": motor_cycle.get("spaceEV"),
-        "motor_cycle_spaceDIS": motor_cycle.get("spaceDIS"),
-        "motor_cycle_space": motor_cycle.get("space")
-    }
+    if not motor_cycle is None:
+        motorcycle_json = {
+            "park_id": info_dict.get("park_Id"),
+            "name": info_dict.get("name"),
+            "motor_cycle_spaceUNL": motor_cycle.get("spaceUNL"),
+            "motor_cycle_spaceEV": motor_cycle.get("spaceEV"),
+            "motor_cycle_spaceDIS": motor_cycle.get("spaceDIS"),
+            "motor_cycle_space": motor_cycle.get("space")
+        }
 
     charges = get_charges(info_dict=info_dict)
     carpark_dict = {
@@ -265,8 +281,8 @@ def main():
     # info_list, charges_weekdays_list, charges_weekend_list, charges_all_time_list, private_car_list, lgv_list = [[] for _ in range(6)]
     info_list, charges_list, private_car_list, lgv_list = [[] for _ in range(4)]
     hgv_list, coach_list, motorcycle_list, vacancy_list = [[] for _ in range(4)]
-    # for _ in range(len(data)):
-    for _ in range(27):
+    for _ in range(len(data)):
+    # for _ in range(27):
         print(f"Current carpark index is {_}:")
         single_data, single_vacancy = data[_], vacancy[_]
         carpark_json = get_carpark_json(single_data, single_vacancy)
@@ -284,7 +300,8 @@ def main():
         vacancy_list.append(carpark_json["vacancy"])
 
     info_df = pd.DataFrame(info_list)
-    charges_df = pd.DataFrame(charges_list)
+    if not charges_list is None:
+        charges_df = pd.DataFrame(np.concatenate(charges_list).tolist())
     private_car_df = pd.DataFrame(private_car_list)
     lgv_df = pd.DataFrame(lgv_list)
     hgv_df = pd.DataFrame(hgv_list)
