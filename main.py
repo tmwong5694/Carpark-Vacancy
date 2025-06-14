@@ -16,7 +16,7 @@ class CarparkScraper(Scraper):
     def __init__(self):
         pass
 
-    def get_response_data(self, data: str="info", vehicle_types: str="privateCar", lang: str="zh_TW", carpark_ids=None, extent=None, ) -> dict:
+    def get_response_data(self, data: str="info", vehicle_type: str="privateCar", lang: str="zh_TW", carpark_ids=None, extent=None, ) -> dict:
         """
         https://api.data.gov.hk/v1/carpark-info-vacancy?data=<param>&vehicleTypes=<param>&carparkIds=<param>&extent=<param>&lang=<param>
         data = "info" or "vacancy"
@@ -33,7 +33,7 @@ class CarparkScraper(Scraper):
             }
             if not data in input_choice["data"]:
                 raise ValueError(f"Input should be one of {input_choice['data']}. Got {data}.")
-            if not vehicle_types in input_choice["vehicleTypes"]:
+            if not vehicle_type in input_choice["vehicleTypes"]:
                 raise ValueError(f"Input should be one of {input_choice['vehicleTypes']}. Got {data}.")
             if not lang in input_choice["lang"]:
                 raise ValueError(f"Input should be one of {input_choice['lang']}. Got {data}.")
@@ -43,11 +43,11 @@ class CarparkScraper(Scraper):
         # Get response from the Carpark Vacancy API
         if carpark_ids is None and extent is None:
             ####
-            input_url = f"https://api.data.gov.hk/v1/carpark-info-vacancy?data={data}&vehicleTypes={vehicle_types}&lang={lang}"
+            input_url = f"https://api.data.gov.hk/v1/carpark-info-vacancy?data={data}&vehicleTypes={vehicle_type}&lang={lang}"
         elif not carpark_ids is None and extent is None:
-            input_url = f"https://api.data.gov.hk/v1/carpark-info-vacancy?data={data}&vehicleTypes={vehicle_types}&carparkIds={carpark_ids}&lang={lang}"
+            input_url = f"https://api.data.gov.hk/v1/carpark-info-vacancy?data={data}&vehicleTypes={vehicle_type}&carparkIds={carpark_ids}&lang={lang}"
         elif carpark_ids is None and not extent is None:
-            input_url = f"https://api.data.gov.hk/v1/carpark-info-vacancy?data={data}&vehicleTypes={vehicle_types}&extent={extent}&lang={lang}"
+            input_url = f"https://api.data.gov.hk/v1/carpark-info-vacancy?data={data}&vehicleTypes={vehicle_type}&extent={extent}&lang={lang}"
         try:
             with urlopen(input_url) as response:
                 response_data = response.read().decode("utf-8")
@@ -58,31 +58,107 @@ class CarparkScraper(Scraper):
             exit(1)
         return response_data["results"]
 
-def get_charges(info_dict):
-    # Get information on the weekdays and weekend charges
-    private_car = info_dict.get("privateCar")
-    if private_car is None:
-        print(f"There is no private car information in the carpark info dictionary: {info_dict.get('park_Id')}")
-        return [{"park_id": info_dict.get("park_Id"), "name": info_dict.get("name")}]
-    if not private_car.get("hourlyCharges") is None:
-        charges = []
-        # Iterate through the list of hourly_charges
-        for hourly_charge in private_car.get("hourlyCharges"):
-            charge = {
-                "park_id": info_dict.get("park_Id"),
-                "name": info_dict.get("name"),
-                "weekdays": hourly_charge.get("weekdays"),
-                "exclude_ph": hourly_charge.get("excludePublicHoliday"),
-                "remark": hourly_charge.get("remark"),
-                "usage_minimum": hourly_charge.get("usageMinimum"),
-                "covered": hourly_charge.get("covered"),
-                "type": hourly_charge.get("type"),
-                "price": hourly_charge.get("price"),
-                "period_start": hourly_charge.get("periodStart"),
-                "period_end": hourly_charge.get("periodEnd")
-            }
-            charges.append(charge)
-    return charges
+def get_vacancy(vacancy_dict: dict, vehicle_type: str="privateCar") -> dict:
+    """Takes in vehicle type and returns the vacancy information for that vehicle type"""
+    vacancy = {
+        "park_id": vacancy_dict.get("park_Id"),
+        "name": vacancy_dict.get("name"),
+        "vehicle_type": vehicle_type
+    }
+    if not vacancy_dict.get(vehicle_type) is None:
+        # Extract info from the dictionary of carpark vacancy
+        vacancy_raw = vacancy_dict.get(vehicle_type)[0]
+        vacancy = {
+            "park_id": vacancy_dict.get("park_Id"),
+            "name": vacancy_dict.get("name"),
+            "vehicle_type": vehicle_type,
+            "vacancy_type": vacancy_raw.get("vacancy_type"),
+            # Checkout what does vacancy type = "A" means in the data dict
+            "vacancy": vacancy_raw.get("vacancy"),
+            "last_update": vacancy_raw.get("lastupdate")
+        }
+    return vacancy
+
+def get_charges_df(all_info: dict, vehicle_type: str) -> pd.DataFrame:
+    """Takes in a dictionary of carpark info and returns a DataFrame of vacancy information for the specified vehicle type."""
+
+    def get_charges(single_info: dict, charges_type: str) -> list:
+        """Takes in a dictionary of carpark info and returns a list of charges information for the specified vehicle type."""
+        # Get information on the weekdays and weekend charges
+        car_type = single_info.get(vehicle_type)
+        blank_dict = {
+            "park_id": single_info.get("park_Id"),
+            "name": single_info.get("name"),
+            "vehicle_type": vehicle_type
+        }
+        if car_type is None:
+            print(
+                f"There is no {vehicle_type} information in the carpark info dictionary: {single_info.get('park_Id')}")
+            return
+
+        charges = None
+        # Try to get hourly charges regarding this vehicle type
+        if not car_type.get(charges_type) is None:
+            charges = []
+            # Iterate through the list of hourly_charges
+            for charge in car_type.get(charges_type):
+                if charges_type == "hourlyCharges":
+                    charge = {
+                        "park_id": single_info.get("park_Id"),
+                        "name": single_info.get("name"),
+                        "vehicle_type": vehicle_type,
+                        "weekdays": charge.get("weekdays"),
+                        "exclude_ph": charge.get("excludePublicHoliday"),
+                        "remark": charge.get("remark"),
+                        "usage_minimum": charge.get("usageMinimum"),
+                        "covered": charge.get("covered"),
+                        "type": charge.get("type"),
+                        "price": charge.get("price"),
+                        "period_start": charge.get("periodStart"),
+                        "period_end": charge.get("periodEnd")
+                    }
+                elif charges_type == "monthlyCharges":
+                    charge = {
+                        "park_id": single_info.get("park_Id"),
+                        "name": single_info.get("name"),
+                        "vehicle_type": vehicle_type,
+                        "covered": charge.get("covered"),
+                        "price": charge.get("price"),
+                        "reserved": charge.get("reserved"),
+                        "type": charge.get("type")
+                    }
+                elif charges_type == "dayNightParks":
+                    charge = {
+                        "park_id": single_info.get("park_Id"),
+                        "name": single_info.get("name"),
+                        "vehicle_type": vehicle_type,
+                        "exclude_ph": charge.get("excludePublicHoliday"),
+                        "period_start": charge.get("periodStart"),
+                        "period_end": charge.get("periodEnd"),
+                        "price": charge.get("price"),
+                        "type": charge.get("type"),
+                        "covered": charge.get("covered"),
+                        "valid_until": charge.get("validUntil")
+                    }
+                if not charge is None:
+                    charges.append(charge)
+        return charges
+
+    info_list = []
+    for _ in range(len(all_info)):
+        hourly = get_charges(single_info=all_info[_], charges_type="hourlyCharges")
+        monthly = get_charges(single_info=all_info[_], charges_type="monthlyCharges")
+        day_night = get_charges(single_info=all_info[_], charges_type="dayNightParks")
+        if not hourly is None:
+            info_list.append(hourly)
+        if not monthly is None:
+            info_list.append(monthly)
+        if not day_night is None:
+            info_list.append(day_night)
+    return_df = None
+    if not len(info_list) == 0:
+        return_df = pd.DataFrame(np.hstack(info_list).tolist())
+    return return_df
 
 def get_carpark_json(info_dict, vacancy_dict):
     """"""
@@ -163,10 +239,6 @@ def get_carpark_json(info_dict, vacancy_dict):
     } for _ in range(5)]
 
     private_car = info_dict.get("privateCar")
-    # private_car_json = {
-    #     "park_id": info_dict.get("park_Id"),
-    #     "name": info_dict.get("name")
-    # }
     if not private_car is None:
         private_car_json = {
             "park_id": info_dict.get("park_Id"),
@@ -177,10 +249,6 @@ def get_carpark_json(info_dict, vacancy_dict):
             "private_car_space": private_car.get("space")
         }
     lgv = info_dict.get("LGV")
-    # lgv_json = {
-    #     "park_id": info_dict.get("park_Id"),
-    #     "name": info_dict.get("name")
-    # }
     if not lgv is None:
         lgv_json = {
             "park_id": info_dict.get("park_Id"),
@@ -270,7 +338,7 @@ def main():
     # Initialize CarparkScraper
     cp_scraper = CarparkScraper()
     # Get the list of carpark info and carpark vacancy data
-    data, vacancy = cp_scraper.get_response_data(), cp_scraper.get_response_data(data="vacancy")
+    all_data, all_vacancy = cp_scraper.get_response_data(vehicle_type="LGV"), cp_scraper.get_response_data(data="vacancy", vehicle_type="LGV")
 
     # Get the table of public holidays
     ph_table = get_public_holiday()
@@ -281,10 +349,10 @@ def main():
     # info_list, charges_weekdays_list, charges_weekend_list, charges_all_time_list, private_car_list, lgv_list = [[] for _ in range(6)]
     info_list, charges_list, private_car_list, lgv_list = [[] for _ in range(4)]
     hgv_list, coach_list, motorcycle_list, vacancy_list = [[] for _ in range(4)]
-    for _ in range(len(data)):
+    for _ in range(len(all_data)):
     # for _ in range(27):
         print(f"Current carpark index is {_}:")
-        single_data, single_vacancy = data[_], vacancy[_]
+        single_data, single_vacancy = all_data[_], all_vacancy[_]
         carpark_json = get_carpark_json(single_data, single_vacancy)
 
         # Get the carpark info
@@ -313,6 +381,26 @@ def main():
     print("End of main()")
 
 if __name__ == "__main__":
-    main()
+    # main()
+    scraper = CarparkScraper()
+    pc_info, pc_vac = scraper.get_response_data(data="info", vehicle_type="privateCar"), scraper.get_response_data(data="vacancy", vehicle_type="privateCar")
+    lgv_info, lgv_vac = scraper.get_response_data(data="info", vehicle_type="LGV"), scraper.get_response_data(data="vacancy", vehicle_type="LGV")
+    hgv_info, hgv_vac = scraper.get_response_data(data="info", vehicle_type="HGV"), scraper.get_response_data(data="vacancy", vehicle_type="HGV")
+    coach_info, coach_vac = scraper.get_response_data(data="info", vehicle_type="coach"), scraper.get_response_data(data="vacancy", vehicle_type="coach")
+    mc_info, mc_vac = scraper.get_response_data(data="info", vehicle_type="motorCycle"), scraper.get_response_data(data="vacancy", vehicle_type="motorCycle")
+
+    charges = pd.concat(
+        [
+            get_charges_df(all_info=pc_info, vehicle_type="privateCar"),
+            get_charges_df(all_info=lgv_info, vehicle_type="LGV"),
+            get_charges_df(all_info=hgv_info, vehicle_type="HGV"),
+            get_charges_df(all_info=coach_info, vehicle_type="coach"),
+            get_charges_df(all_info=mc_info, vehicle_type="motorCycle")
+        ],
+        axis=0
+    )
+    some_vac = get_vacancy(vacancy_dict=pc_vac[0], vehicle_type="privateCar")
+
+    # print(json.dumps(mc_info[0], indent=4).encode().decode('unicode_escape'))
 
     print("End of program.")
