@@ -140,6 +140,9 @@ def get_charges_df(all_info: dict, vehicle_type: str) -> pd.DataFrame:
                         "covered": charge.get("covered"),
                         "valid_until": charge.get("validUntil")
                     }
+                elif charges_type == "privileges":
+                    print(f"Privileges is not supported for carpark {_} yet (carpark_id {single_info.get('park_Id')})")
+                    break
                 if not charge is None:
                     charges.append(charge)
         return charges
@@ -149,6 +152,7 @@ def get_charges_df(all_info: dict, vehicle_type: str) -> pd.DataFrame:
         hourly = get_charges(single_info=all_info[_], charges_type="hourlyCharges")
         monthly = get_charges(single_info=all_info[_], charges_type="monthlyCharges")
         day_night = get_charges(single_info=all_info[_], charges_type="dayNightParks")
+        privileges = get_charges(single_info=all_info[_], charges_type="privileges")
         if not hourly is None:
             info_list.append(hourly)
         if not monthly is None:
