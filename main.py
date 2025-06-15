@@ -13,10 +13,28 @@ import urllib
 the_url = "https://api.data.gov.hk/v1/carpark-info-vacancy?data=vacancy&vehicleTypes=privateCar&lang=zh_TW"
 
 class CarparkScraper(Scraper):
-    def __init__(self):
-        pass
+    def __init__(self, vehicle_type: str, lang: str="zh_TW"):
+        self.vehicle_type = vehicle_type
+        self.lang = lang
+        self.info = None
+        self.vacancy = None
+        self.park_ids = None
 
-    def get_response_data(self, data: str="info", vehicle_type: str="privateCar", lang: str="zh_TW", carpark_ids=None, extent=None, ) -> dict:
+    def check_input(self, data: str, vehicle_type: str, lang: str) -> None:
+        """Validate the input of params"""
+        input_choice = {
+            "data": ("info", "vacancy"),
+            "vehicleTypes": ("privateCar", "LGV", "HGV", "CV", "coach", "motorCycle"),
+            "lang": ("en_US", "zh_TW", "zh_CN")
+        }
+        if not data in input_choice["data"]:
+            raise ValueError(f"Input should be one of {input_choice['data']}. Got {data}.")
+        if not vehicle_type in input_choice["vehicleTypes"]:
+            raise ValueError(f"Input should be one of {input_choice['vehicleTypes']}. Got {vehicle_type}.")
+        if not lang in input_choice["lang"]:
+            raise ValueError(f"Input should be one of {input_choice['lang']}. Got {lang}.")
+
+    def get_data(self, data: str="info", lang: (str, None)="zh_TW", carpark_id=None, extent=None) -> list:
         """
         https://api.data.gov.hk/v1/carpark-info-vacancy?data=<param>&vehicleTypes=<param>&carparkIds=<param>&extent=<param>&lang=<param>
         data = "info" or "vacancy"
@@ -24,30 +42,15 @@ class CarparkScraper(Scraper):
         lang = "en_US", "zh_TW", "zh_CN"
         """
 
-        def check_input() -> None:
-            """Validate the input of params"""
-            input_choice = {
-                "data": ["info", "vacancy"],
-                "vehicleTypes": ["privateCar", "LGV", "HGV", "CV", "coach", "motorCycle"],
-                "lang": ["en_US", "zh_TW", "zh_CN"]
-            }
-            if not data in input_choice["data"]:
-                raise ValueError(f"Input should be one of {input_choice['data']}. Got {data}.")
-            if not vehicle_type in input_choice["vehicleTypes"]:
-                raise ValueError(f"Input should be one of {input_choice['vehicleTypes']}. Got {data}.")
-            if not lang in input_choice["lang"]:
-                raise ValueError(f"Input should be one of {input_choice['lang']}. Got {data}.")
-
-        check_input()
+        self.check_input(data=data, vehicle_type=self.vehicle_type, lang=lang)
 
         # Get response from the Carpark Vacancy API
-        if carpark_ids is None and extent is None:
-            ####
-            input_url = f"https://api.data.gov.hk/v1/carpark-info-vacancy?data={data}&vehicleTypes={vehicle_type}&lang={lang}"
-        elif not carpark_ids is None and extent is None:
-            input_url = f"https://api.data.gov.hk/v1/carpark-info-vacancy?data={data}&vehicleTypes={vehicle_type}&carparkIds={carpark_ids}&lang={lang}"
-        elif carpark_ids is None and not extent is None:
-            input_url = f"https://api.data.gov.hk/v1/carpark-info-vacancy?data={data}&vehicleTypes={vehicle_type}&extent={extent}&lang={lang}"
+        if carpark_id is None and extent is None:
+            input_url = f"https://api.data.gov.hk/v1/carpark-info-vacancy?data={data}&vehicleTypes={self.vehicle_type}&lang={lang}"
+        elif not carpark_id is None and extent is None:
+            input_url = f"https://api.data.gov.hk/v1/carpark-info-vacancy?data={data}&vehicleTypes={self.vehicle_type}&carparkIds={carpark_id}&lang={lang}"
+        elif carpark_id is None and not extent is None:
+            input_url = f"https://api.data.gov.hk/v1/carpark-info-vacancy?data={data}&vehicleTypes={self.vehicle_type}&extent={extent}&lang={lang}"
         try:
             with urlopen(input_url) as response:
                 response_data = response.read().decode("utf-8")
@@ -56,28 +59,102 @@ class CarparkScraper(Scraper):
         except urllib.error.HTTPError as HTTPError:
             print(f"Error: Unable to connect to the API:\n{HTTPError}")
             exit(1)
-        return response_data["results"]
+        # results = pd.DataFrame(response_data["results"]).loc[:, ["park_Id", self.vehicle_type]]
+        results = response_data["results"]
+        if data == "info":
+            self.info = results
+        elif data == "vacancy":
+            results = pd.DataFrame(results).loc[: , ["park_Id", self.vehicle_type]]
+            self.vacancy = results
+        self.park_ids = pd.DataFrame(results)["park_Id"].unique()
+        return results
 
-def get_vacancy(vacancy_dict: dict, vehicle_type: str="privateCar") -> dict:
-    """Takes in vehicle type and returns the vacancy information for that vehicle type"""
-    vacancy = {
-        "park_id": vacancy_dict.get("park_Id"),
-        "name": vacancy_dict.get("name"),
-        "vehicle_type": vehicle_type
-    }
-    if not vacancy_dict.get(vehicle_type) is None:
-        # Extract info from the dictionary of carpark vacancy
-        vacancy_raw = vacancy_dict.get(vehicle_type)[0]
-        vacancy = {
-            "park_id": vacancy_dict.get("park_Id"),
-            "name": vacancy_dict.get("name"),
-            "vehicle_type": vehicle_type,
-            "vacancy_type": vacancy_raw.get("vacancy_type"),
-            # Checkout what does vacancy type = "A" means in the data dict
-            "vacancy": vacancy_raw.get("vacancy"),
-            "last_update": vacancy_raw.get("lastupdate")
+    def get_vacancy(self, park_id: str) -> dict:
+        """Takes in the park_id returns the vacancy information of that car park"""
+        carpark = pd.DataFrame(self.vacancy).set_index("park_Id").loc[str(park_id)]
+        # Return none if vacancy for the vehicle type is unavailable
+        vacancy = None
+        if not carpark.get(self.vehicle_type) in (None, np.nan):
+            # Extract info from the dictionary of carpark vacancy
+            vacancy_raw = carpark.get(self.vehicle_type)[0]
+            vacancy = {
+                "park_id": park_id,
+                "vehicle_type": self.vehicle_type,
+                "vacancy_type": vacancy_raw.get("vacancy_type"),
+                # Checkout what does vacancy type = "A" means in the data dict
+                "vacancy": vacancy_raw.get("vacancy"),
+                "last_update": vacancy_raw.get("lastupdate")
+            }
+        return vacancy
+
+    def get_basic_info(self, park_id: str) -> dict:
+        """Takes in the park_id and returns the basic information of that car park"""
+        carpark = pd.DataFrame(self.info).set_index("park_Id").loc[str(park_id)]
+        basic_info = {
+            "park_id": park_id,
+            "name": carpark.get("name"),
+            "nature": carpark.get("nature"),
+            "carpark_type": carpark.get("carpark_Type"),
+            "full_address": carpark.get("displayAddress"),  # Full address
+            "district": carpark.get("district"),
+            "latitude": carpark.get("latitude"),
+            "longitude": carpark.get("longitude"),
+            "contact_no": carpark.get("contactNo"),
+            "opening_status": carpark.get("opening_status"),
+            "facilities": carpark.get("facilities"),
+            "payment_method": carpark.get("paymentMethods"),
+            "creation_date": carpark.get("creationDate"),
+            "modified_date": carpark.get("modifiedDate"),
+            "published_date": carpark.get("publishedDate"),
+            "website": carpark.get("website")
         }
-    return vacancy
+
+        basic_info["grace_periods"] = None
+        # if not (carpark.get("gracePeriods") is None or carpark.get("gracePeriods") is np.nan):
+        if not carpark.get("gracePeriods") in (None, np.nan):
+            basic_info["grace_periods"] = carpark.get("gracePeriods")[0]["minutes"]
+
+        basic_info["height_limits"] = None
+        if not carpark.get("heightLimits") in (None, np.nan):
+            basic_info["height_limits"] = carpark.get("heightLimits")[0]["height"]
+
+        address = carpark.get("address")
+        if not address in (None, np.nan):
+            basic_info["floor"] = address.get("floor")
+            basic_info["building_name"] = address.get("buildingName")
+            basic_info["street_name"] = address.get("streetName")
+            basic_info["building_no"] = address.get("buildingNo")
+            basic_info["sub_district"] = address.get("subDistrict")
+            basic_info["dc_district"] = address.get("dcDistrict")
+            basic_info["region"] = address.get("region")
+
+        rendition_urls = carpark.get("renditionUrls")
+        if not rendition_urls in (None, np.nan):
+            basic_info["square"] = rendition_urls.get("square")
+            basic_info["thumbnail"] = rendition_urls.get("thumbnail")
+            basic_info["banner"] = rendition_urls.get("banner")
+
+        if not carpark.get("openingHours") in (None, np.nan):
+            opening_hours_weekdays = carpark["openingHours"][0]
+            basic_info["weekdays_open"]: opening_hours_weekdays.get("weekdays")
+            basic_info["exclude_public_holiday"]: opening_hours_weekdays.get("excludePublicHoliday")
+            basic_info["period_start"]: opening_hours_weekdays.get("periodStart")
+            basic_info["period_end"]: opening_hours_weekdays.get("periodEnd")
+        return basic_info
+
+    def get_opening_hours(self, park_id: str):
+        """Takes in the park_id and returns the opening hours of that car park."""
+        carpark = pd.DataFrame(self.info).set_index("park_Id").loc[str(park_id)]
+        opening_hours = None
+        if not carpark.get("openingHours") in (None, np.nan):
+            opening_hours = {
+                "park_id": park_id,
+                "weekdays": carpark.get("openingHours")[0].get("weekdays"),
+                "exclude_public_holiday": carpark.get("openingHours")[0].get("excludePublicHoliday"),
+                "period_start": carpark.get("openingHours")[0].get("periodStart"),
+                "period_end": carpark.get("openingHours")[0].get("periodEnd")
+            }
+        return opening_hours
 
 def get_charges_df(all_info: dict, vehicle_type: str) -> pd.DataFrame:
     """Takes in a dictionary of carpark info and returns a DataFrame of vacancy information for the specified vehicle type."""
@@ -164,150 +241,6 @@ def get_charges_df(all_info: dict, vehicle_type: str) -> pd.DataFrame:
         return_df = pd.DataFrame(np.hstack(info_list).tolist())
     return return_df
 
-def get_carpark_json(info_dict, vacancy_dict):
-    """"""
-
-    # Extract sub-dictionary from the carpark info dictionary first
-    try:
-        info_json = {
-            "park_id": info_dict.get("park_Id"),
-            "name": info_dict.get("name"),
-            "nature": info_dict.get("nature"),
-            "carpark_type": info_dict.get("carpark_Type"),
-            "address": info_dict.get("displayAddress"),  # Full address
-            "district": info_dict.get("district"),
-            "latitude": info_dict.get("latitude"),
-            "longitude": info_dict.get("longitude"),
-            "contact_no": info_dict.get("contactNo"),
-            "opening_status": info_dict.get("opening_status"),
-            "facilities": info_dict.get("facilities"),
-            "payment_method": info_dict.get("paymentMethods"),
-            "creation_date": info_dict.get("creationDate"),
-            "modified_date": info_dict.get("modifiedDate"),
-            "published_date": info_dict.get("publishedDate"),
-            "lang": info_dict.get("lang"),
-            "website": info_dict.get("website")
-        }
-
-    except KeyError as keyerror1:
-        print(f"The key {keyerror1} is not found!")
-
-    info_json["grace_periods"] = None
-    if not info_dict.get("gracePeriods") is None:
-        info_json["grace_periods"] = info_dict.get("gracePeriods")[0]["minutes"]
-
-    info_json["height_limits"] = None
-    if not info_dict.get("heightLimits") is None:
-        info_json["height_limits"] = info_dict.get("heightLimits")[0]["height"]
-
-    address = info_dict.get("address")
-    if not address is None:
-        info_json["floor"] = address.get("floor")
-        info_json["building_name"] = address.get("buildingName")
-        info_json["street_name"] = address.get("streetName")
-        info_json["building_no"] = address.get("buildingNo")
-        info_json["sub_district"] = address.get("subDistrict")
-        info_json["dc_district"] = address.get("dcDistrict")
-        info_json["region"] = address.get("region")
-
-    rendition_urls = info_dict.get("renditionUrls")
-    if not rendition_urls is None:
-        info_json["square"] = rendition_urls.get("square")
-        info_json["thumbnail"] = rendition_urls.get("thumbnail")
-        info_json["banner"] = rendition_urls.get("banner")
-
-    if not info_dict.get("openingHours") is None:
-        opening_hours_weekdays = info_dict["openingHours"][0]
-        info_json["weekdays_open"]: opening_hours_weekdays.get("weekdays")
-        info_json["exclude_public_holiday"]: opening_hours_weekdays.get("excludePublicHoliday")
-        info_json["period_start"]: opening_hours_weekdays.get("periodStart")
-        info_json["period_end"]: opening_hours_weekdays.get("periodEnd")
-
-    # Extract info from the dictionary of carpark vacancy
-    private_car_vacancy = vacancy_dict.get("privateCar")[0]
-    try:
-        vacancy_json = {
-            "park_id": vacancy_dict.get("park_Id"),
-            "name": info_dict.get("name"),
-            "vacancy_type": private_car_vacancy.get("vacancy_type"),
-            # Checkout what does vacancy type = "A" means in the data dict
-            "vacancy": private_car_vacancy.get("vacancy"),
-            "last_update": private_car_vacancy.get("lastupdate")
-        }
-    except KeyError as keyerror2:
-        print(f"The key {keyerror2} is not found!")
-
-    private_car_json, lgv_json, hgv_json, coach_json, motorcycle_json = [{
-        "park_id": info_dict.get("park_Id"),
-        "name": info_dict.get("name")
-    } for _ in range(5)]
-
-    private_car = info_dict.get("privateCar")
-    if not private_car is None:
-        private_car_json = {
-            "park_id": info_dict.get("park_Id"),
-            "name": info_dict.get("name"),
-            "private_car_spaceUNL": private_car.get("spaceUNL"),
-            "private_car_spaceEV": private_car.get("spaceEV"),
-            "private_car_spaceDIS": private_car.get("spaceDIS"),
-            "private_car_space": private_car.get("space")
-        }
-    lgv = info_dict.get("LGV")
-    if not lgv is None:
-        lgv_json = {
-            "park_id": info_dict.get("park_Id"),
-            "name": info_dict.get("name"),
-            "lgv_spaceUNL": lgv.get("spaceUNL"),
-            "lgv_spaceEV": lgv.get("spaceEV"),
-            "lgv_spaceDIS": lgv.get("spaceDIS"),
-            "lgv_space": lgv.get("space")
-        }
-    hgv = info_dict.get("HGV")
-    if not hgv is None:
-        hgv_json = {
-            "park_id": info_dict.get("park_Id"),
-            "name": info_dict.get("name"),
-            "hgv_spaceUNL": hgv.get("spaceUNL"),
-            "hgv_spaceEV": hgv.get("spaceEV"),
-            "hgv_spaceDIS": hgv.get("spaceDIS"),
-            "hgv_space": hgv.get("space")
-        }
-    coach = info_dict.get("coach")
-    if not coach is None:
-        coach_json = {
-            "park_id": info_dict.get("park_Id"),
-            "name": info_dict.get("name"),
-            "coach_spaceUNL": coach.get("spaceUNL"),
-            "coach_spaceEV": coach.get("spaceEV"),
-            "coach_spaceDIS": coach.get("spaceDIS"),
-            "coach_space": coach.get("space")
-        }
-    motor_cycle = info_dict.get("motorCycle")
-    if not motor_cycle is None:
-        motorcycle_json = {
-            "park_id": info_dict.get("park_Id"),
-            "name": info_dict.get("name"),
-            "motor_cycle_spaceUNL": motor_cycle.get("spaceUNL"),
-            "motor_cycle_spaceEV": motor_cycle.get("spaceEV"),
-            "motor_cycle_spaceDIS": motor_cycle.get("spaceDIS"),
-            "motor_cycle_space": motor_cycle.get("space")
-        }
-
-    charges = get_charges(info_dict=info_dict)
-    carpark_dict = {
-        "info": info_json,
-        "charges": charges,
-        # "charges_weekend": charges["weekend"],
-        # "charges_all_time": charges["all_time"],
-        "private_car": private_car_json,
-        "lgv": lgv_json,
-        "hgv": hgv_json,
-        "coach": coach_json,
-        "motorcycle": motorcycle_json,
-        "vacancy": vacancy_json
-    }
-    return carpark_dict
-
 def get_public_holiday():
     # Define a ph_dict to hold all the public holidays
     holiday_url = "https://www.gov.hk/en/about/abouthk/holiday/2025.htm"
@@ -386,25 +319,38 @@ def main():
 
 if __name__ == "__main__":
     # main()
-    scraper = CarparkScraper()
-    pc_info, pc_vac = scraper.get_response_data(data="info", vehicle_type="privateCar"), scraper.get_response_data(data="vacancy", vehicle_type="privateCar")
-    lgv_info, lgv_vac = scraper.get_response_data(data="info", vehicle_type="LGV"), scraper.get_response_data(data="vacancy", vehicle_type="LGV")
-    hgv_info, hgv_vac = scraper.get_response_data(data="info", vehicle_type="HGV"), scraper.get_response_data(data="vacancy", vehicle_type="HGV")
-    coach_info, coach_vac = scraper.get_response_data(data="info", vehicle_type="coach"), scraper.get_response_data(data="vacancy", vehicle_type="coach")
-    mc_info, mc_vac = scraper.get_response_data(data="info", vehicle_type="motorCycle"), scraper.get_response_data(data="vacancy", vehicle_type="motorCycle")
+    HGV = CarparkScraper(vehicle_type="privateCar")
+    HGV.get_data(data="info")
+    HGV.get_data(data="vacancy")
+    HGV_list = []
+    for id in HGV.park_ids:
+        opening_hour = HGV.get_opening_hours(park_id=id)
+        if not opening_hour is None:
+            HGV_list.append(opening_hour)
+    HGV_opening_hours_df = pd.DataFrame(HGV_list)
 
-    charges = pd.concat(
-        [
-            get_charges_df(all_info=pc_info, vehicle_type="privateCar"),
-            get_charges_df(all_info=lgv_info, vehicle_type="LGV"),
-            get_charges_df(all_info=hgv_info, vehicle_type="HGV"),
-            get_charges_df(all_info=coach_info, vehicle_type="coach"),
-            get_charges_df(all_info=mc_info, vehicle_type="motorCycle")
-        ],
-        axis=0
-    )
-    some_vac = get_vacancy(vacancy_dict=pc_vac[0], vehicle_type="privateCar")
 
-    # print(json.dumps(mc_info[0], indent=4).encode().decode('unicode_escape'))
+
+
+
+
+    # lgv_info, lgv_vac = scraper.get_response_data(data="info", vehicle_type="LGV"), scraper.get_response_data(data="vacancy", vehicle_type="LGV")
+    # hgv_info, hgv_vac = scraper.get_response_data(data="info", vehicle_type="HGV"), scraper.get_response_data(data="vacancy", vehicle_type="HGV")
+    # coach_info, coach_vac = scraper.get_response_data(data="info", vehicle_type="coach"), scraper.get_response_data(data="vacancy", vehicle_type="coach")
+    # mc_info, mc_vac = scraper.get_response_data(data="info", vehicle_type="motorCycle"), scraper.get_response_data(data="vacancy", vehicle_type="motorCycle")
+
+    # charges = pd.concat(
+    #     [
+    #         get_charges_df(all_info=pc_info, vehicle_type="privateCar"),
+    #         get_charges_df(all_info=lgv_info, vehicle_type="LGV"),
+    #         get_charges_df(all_info=hgv_info, vehicle_type="HGV"),
+    #         get_charges_df(all_info=coach_info, vehicle_type="coach"),
+    #         get_charges_df(all_info=mc_info, vehicle_type="motorCycle")
+    #     ],
+    #     axis=0
+    # )
+    # some_vac = get_vacancy(vacancy_dict=pc_vac[0], vehicle_type="privateCar")
+
+    # print(json.dumps(pc_info[0], indent=4).encode().decode('unicode_escape'))
 
     print("End of program.")
