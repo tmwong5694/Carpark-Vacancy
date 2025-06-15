@@ -136,25 +136,64 @@ class CarparkScraper(Scraper):
 
         if not carpark.get("openingHours") in (None, np.nan):
             opening_hours_weekdays = carpark["openingHours"][0]
-            basic_info["weekdays_open"]: opening_hours_weekdays.get("weekdays")
-            basic_info["exclude_public_holiday"]: opening_hours_weekdays.get("excludePublicHoliday")
-            basic_info["period_start"]: opening_hours_weekdays.get("periodStart")
-            basic_info["period_end"]: opening_hours_weekdays.get("periodEnd")
+            basic_info["weekdays_open"] = opening_hours_weekdays.get("weekdays")
+            basic_info["exclude_public_holiday"] = opening_hours_weekdays.get("excludePublicHoliday")
+            basic_info["period_start"] = opening_hours_weekdays.get("periodStart")
+            basic_info["period_end"] = opening_hours_weekdays.get("periodEnd")
         return basic_info
 
     def get_opening_hours(self, park_id: str):
         """Takes in the park_id and returns the opening hours of that car park."""
         carpark = pd.DataFrame(self.info).set_index("park_Id").loc[str(park_id)]
-        opening_hours = None
+        opening_hours_list = []
         if not carpark.get("openingHours") in (None, np.nan):
-            opening_hours = {
-                "park_id": park_id,
-                "weekdays": carpark.get("openingHours")[0].get("weekdays"),
-                "exclude_public_holiday": carpark.get("openingHours")[0].get("excludePublicHoliday"),
-                "period_start": carpark.get("openingHours")[0].get("periodStart"),
-                "period_end": carpark.get("openingHours")[0].get("periodEnd")
-            }
-        return opening_hours
+            # Iterate through all the opening hour
+            for opening_hour in carpark.get("openingHours"):
+                opening_hours = {
+                    "park_id": park_id,
+                    "weekdays": opening_hour.get("weekdays"),
+                    "exclude_public_holiday": opening_hour.get("excludePublicHoliday"),
+                    "period_start": opening_hour.get("periodStart"),
+                    "period_end": opening_hour.get("periodEnd")
+                }
+                opening_hours_list.append(opening_hours)
+        return opening_hours_list
+
+    def get_charges(self, park_id: str, mode: str):
+        """Takes in the park_id and returns the charges information of that car park."""
+        if not mode in ("privileges", "monthlyCharges", "hourlyCharges", "dayNightParks"):
+            raise ValueError("Please try again with other mode of charges.")
+        carpark = pd.DataFrame(self.info).set_index("park_Id").loc[str(park_id)]
+
+        charge_result = None
+        if not carpark.get(self.vehicle_type) in (None, np.nan):
+            if not carpark.get(self.vehicle_type).get(mode) in (None, np.nan):
+                charge = carpark.get(self.vehicle_type).get(mode)[0]
+                charge_result = {
+                    "park_id": park_id,
+                    "weekdays": charge.get("weekdays"),
+                    "exclude_public_holiday": charge.get("excludePublicHoliday"),
+                    "period_start": charge.get("periodStart"),
+                    "period_end": charge.get("periodEnd"),
+                    "price": charge.get("price"),
+                    "description": charge.get("description"),
+                    "type": charge.get("type"),
+                    "covered": charge.get("covered"),
+                    "valid_until": charge.get("validUntil"),
+                    "space": carpark.get("space"),
+                    "space_dis": carpark.get("spaceDIS"),
+                    "space_ev": carpark.get("spaceEV"),
+                    "space_unl": carpark.get("spaceUNL")
+                }
+        return charge_result
+
+
+    # def get_df(self, data: str="charges") -> pd.DataFrame:
+    #     """Get the DataFrame of the relevant information"""
+    #     append_list = [self.get_charges()]
+    #
+    #
+    #     return
 
 def get_charges_df(all_info: dict, vehicle_type: str) -> pd.DataFrame:
     """Takes in a dictionary of carpark info and returns a DataFrame of vacancy information for the specified vehicle type."""
@@ -241,7 +280,8 @@ def get_charges_df(all_info: dict, vehicle_type: str) -> pd.DataFrame:
         return_df = pd.DataFrame(np.hstack(info_list).tolist())
     return return_df
 
-def get_public_holiday():
+
+def get_public_holiday() -> np.ndarray:
     # Define a ph_dict to hold all the public holidays
     holiday_url = "https://www.gov.hk/en/about/abouthk/holiday/2025.htm"
     html_content = Scraper(url=holiday_url, decode="utf-8").openurl()
@@ -270,87 +310,29 @@ def get_public_holiday():
 
     return ph_array
 
-def main():
 
-    # Initialize CarparkScraper
-    cp_scraper = CarparkScraper()
-    # Get the list of carpark info and carpark vacancy data
-    all_data, all_vacancy = cp_scraper.get_response_data(vehicle_type="LGV"), cp_scraper.get_response_data(data="vacancy", vehicle_type="LGV")
-
-    # Get the table of public holidays
-    ph_table = get_public_holiday()
-
-
-    cols = ["park_id", "name", "nature", "carpark_type", "floor", "building_name", "street_name", "building_no", "sub_district", "dc_district"]
-
-    # info_list, charges_weekdays_list, charges_weekend_list, charges_all_time_list, private_car_list, lgv_list = [[] for _ in range(6)]
-    info_list, charges_list, private_car_list, lgv_list = [[] for _ in range(4)]
-    hgv_list, coach_list, motorcycle_list, vacancy_list = [[] for _ in range(4)]
-    for _ in range(len(all_data)):
-    # for _ in range(27):
-        print(f"Current carpark index is {_}:")
-        single_data, single_vacancy = all_data[_], all_vacancy[_]
-        carpark_json = get_carpark_json(single_data, single_vacancy)
-
-        # Get the carpark info
-        info_list.append(carpark_json["info"])
-        charges_list.append(carpark_json["charges"])
-        # Get the private car, LGV, HGV, coach and motorcycle info
-        private_car_list.append(carpark_json["private_car"])
-        lgv_list.append(carpark_json["lgv"])
-        hgv_list.append(carpark_json["hgv"])
-        coach_list.append(carpark_json["coach"])
-        motorcycle_list.append(carpark_json["motorcycle"])
-        # Get the vacancy info
-        vacancy_list.append(carpark_json["vacancy"])
-
-    info_df = pd.DataFrame(info_list)
-    if not charges_list is None:
-        charges_df = pd.DataFrame(np.concatenate(charges_list).tolist())
-    private_car_df = pd.DataFrame(private_car_list)
-    lgv_df = pd.DataFrame(lgv_list)
-    hgv_df = pd.DataFrame(hgv_list)
-    coach_df = pd.DataFrame(coach_list)
-    motorcycle_df = pd.DataFrame(motorcycle_list)
-    vacancy_df = pd.DataFrame(vacancy_list)
-
-
-    print("End of main()")
 
 if __name__ == "__main__":
-    # main()
-    HGV = CarparkScraper(vehicle_type="privateCar")
-    HGV.get_data(data="info")
-    HGV.get_data(data="vacancy")
-    HGV_list = []
-    for id in HGV.park_ids:
-        opening_hour = HGV.get_opening_hours(park_id=id)
-        if not opening_hour is None:
-            HGV_list.append(opening_hour)
-    HGV_opening_hours_df = pd.DataFrame(HGV_list)
+    pc = CarparkScraper(vehicle_type="privateCar")
+    pc.get_data(data="info")
+    pc.get_data(data="vacancy")
+    pc_list = []
+    for id in pc.park_ids:
+        # charges = pc.get_charges(park_id=id, mode="hourlyCharges")
+        # if not charges is None:
+        #     pc_list.append(charges)
+        opening_hours = pc.get_opening_hours(park_id=id)
+        if not opening_hours is None:
+            if len(opening_hours) == 1:
+                pc_list.append(opening_hours[0])
+            elif len(opening_hours) > 1:
+                pc_list += [opening_hour for opening_hour in opening_hours]
+    # pc_charges_df = pd.DataFrame(pc_list)
+    pc_opening_hours_df = pd.DataFrame(pc_list)
 
+    motor_cycle = CarparkScraper(vehicle_type="motorCycle")
+    motor_cycle.get_data(data="info")
+    charge1 = motor_cycle.get_charges(park_id=motor_cycle.park_ids[0], mode="hourlyCharges")
 
-
-
-
-
-    # lgv_info, lgv_vac = scraper.get_response_data(data="info", vehicle_type="LGV"), scraper.get_response_data(data="vacancy", vehicle_type="LGV")
-    # hgv_info, hgv_vac = scraper.get_response_data(data="info", vehicle_type="HGV"), scraper.get_response_data(data="vacancy", vehicle_type="HGV")
-    # coach_info, coach_vac = scraper.get_response_data(data="info", vehicle_type="coach"), scraper.get_response_data(data="vacancy", vehicle_type="coach")
-    # mc_info, mc_vac = scraper.get_response_data(data="info", vehicle_type="motorCycle"), scraper.get_response_data(data="vacancy", vehicle_type="motorCycle")
-
-    # charges = pd.concat(
-    #     [
-    #         get_charges_df(all_info=pc_info, vehicle_type="privateCar"),
-    #         get_charges_df(all_info=lgv_info, vehicle_type="LGV"),
-    #         get_charges_df(all_info=hgv_info, vehicle_type="HGV"),
-    #         get_charges_df(all_info=coach_info, vehicle_type="coach"),
-    #         get_charges_df(all_info=mc_info, vehicle_type="motorCycle")
-    #     ],
-    #     axis=0
-    # )
-    # some_vac = get_vacancy(vacancy_dict=pc_vac[0], vehicle_type="privateCar")
-
-    # print(json.dumps(pc_info[0], indent=4).encode().decode('unicode_escape'))
 
     print("End of program.")
