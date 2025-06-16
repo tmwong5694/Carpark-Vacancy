@@ -110,7 +110,6 @@ class CarparkScraper(Scraper):
         }
 
         basic_info["grace_periods"] = None
-        # if not (carpark.get("gracePeriods") is None or carpark.get("gracePeriods") is np.nan):
         if not carpark.get("gracePeriods") in (None, np.nan):
             basic_info["grace_periods"] = carpark.get("gracePeriods")[0]["minutes"]
 
@@ -134,30 +133,37 @@ class CarparkScraper(Scraper):
             basic_info["thumbnail"] = rendition_urls.get("thumbnail")
             basic_info["banner"] = rendition_urls.get("banner")
 
-        if not carpark.get("openingHours") in (None, np.nan):
-            opening_hours_weekdays = carpark["openingHours"][0]
-            basic_info["weekdays_open"] = opening_hours_weekdays.get("weekdays")
-            basic_info["exclude_public_holiday"] = opening_hours_weekdays.get("excludePublicHoliday")
-            basic_info["period_start"] = opening_hours_weekdays.get("periodStart")
-            basic_info["period_end"] = opening_hours_weekdays.get("periodEnd")
+        # if not carpark.get("openingHours") in (None, np.nan):
+        #     opening_hours_weekdays = carpark["openingHours"][0]
+        #     basic_info["weekdays_open"] = opening_hours_weekdays.get("weekdays")
+        #     basic_info["exclude_public_holiday"] = opening_hours_weekdays.get("excludePublicHoliday")
+        #     basic_info["period_start"] = opening_hours_weekdays.get("periodStart")
+        #     basic_info["period_end"] = opening_hours_weekdays.get("periodEnd")
         return basic_info
 
-    def get_opening_hours(self, park_id: str):
+    def get_address(self, park_id: str):
+        """Takes in the park_id and return the address of that car park."""
+        carpark = pd.DataFrame(self.info).set_index("park_Id").loc[str(park_id)]
+        addresses = []
+
+        return
+
+    def get_opening_hours(self, park_id: str) -> list:
         """Takes in the park_id and returns the opening hours of that car park."""
         carpark = pd.DataFrame(self.info).set_index("park_Id").loc[str(park_id)]
-        opening_hours_list = []
+        opening_hours = []
         if not carpark.get("openingHours") in (None, np.nan):
             # Iterate through all the opening hour
-            for opening_hour in carpark.get("openingHours"):
-                opening_hours = {
+            for hour in carpark.get("openingHours"):
+                opening_hour = {
                     "park_id": park_id,
-                    "weekdays": opening_hour.get("weekdays"),
-                    "exclude_public_holiday": opening_hour.get("excludePublicHoliday"),
-                    "period_start": opening_hour.get("periodStart"),
-                    "period_end": opening_hour.get("periodEnd")
+                    "weekdays": hour.get("weekdays"),
+                    "exclude_public_holiday": hour.get("excludePublicHoliday"),
+                    "period_start": hour.get("periodStart"),
+                    "period_end": hour.get("periodEnd")
                 }
-                opening_hours_list.append(opening_hours)
-        return opening_hours_list
+                opening_hours.append(opening_hour)
+        return opening_hours
 
     def get_charges(self, park_id: str, mode: str):
         """Takes in the park_id and returns the charges information of that car park."""
@@ -313,26 +319,27 @@ def get_public_holiday() -> np.ndarray:
 
 
 if __name__ == "__main__":
-    pc = CarparkScraper(vehicle_type="privateCar")
+    pc, mc = CarparkScraper(vehicle_type="privateCar"), CarparkScraper(vehicle_type="privateCar")
     pc.get_data(data="info")
     pc.get_data(data="vacancy")
-    pc_list = []
-    for id in pc.park_ids:
+    mc.get_data(data="info")
+    mc.get_data(data="vacancy")
+    mc_list = []
+    basicinfo= []
+    for id in mc.park_ids:
+        basic_info = mc.get_basic_info(park_id=id)
         # charges = pc.get_charges(park_id=id, mode="hourlyCharges")
         # if not charges is None:
         #     pc_list.append(charges)
-        opening_hours = pc.get_opening_hours(park_id=id)
+        opening_hours = mc.get_opening_hours(park_id=id)
         if not opening_hours is None:
-            if len(opening_hours) == 1:
-                pc_list.append(opening_hours[0])
-            elif len(opening_hours) > 1:
-                pc_list += [opening_hour for opening_hour in opening_hours]
-    # pc_charges_df = pd.DataFrame(pc_list)
-    pc_opening_hours_df = pd.DataFrame(pc_list)
+            mc_list.extend(opening_hours)
+        if not basic_info is None:
+            basicinfo.append(basic_info)
 
-    motor_cycle = CarparkScraper(vehicle_type="motorCycle")
-    motor_cycle.get_data(data="info")
-    charge1 = motor_cycle.get_charges(park_id=motor_cycle.park_ids[0], mode="hourlyCharges")
+    info_df = pd.DataFrame(basicinfo)
+    # pc_charges_df = pd.DataFrame(pc_list)
+    pc_opening_hours_df = pd.DataFrame(mc_list)
 
 
     print("End of program.")
