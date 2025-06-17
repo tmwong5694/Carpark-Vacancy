@@ -109,12 +109,6 @@ class CarparkScraper(Scraper):
             "website": carpark.get("website")
         }
 
-
-
-        basic_info["height_limits"] = None
-        if not carpark.get("heightLimits") in (None, np.nan):
-            basic_info["height_limits"] = carpark.get("heightLimits")[0]["height"]
-
         address = carpark.get("address")
         if not address in (None, np.nan):
             basic_info["floor"] = address.get("floor")
@@ -177,6 +171,20 @@ class CarparkScraper(Scraper):
                 grace_periods.append(grace_period)
         return grace_periods
 
+    def get_height_limits(self, park_id):
+        """Takes in the park_id and returns the height limits of that car park."""
+        carpark = pd.DataFrame(self.info).set_index("park_Id").loc[str(park_id)]
+        height_limits = []
+        if not carpark.get("heightLimits") in (None, np.nan):
+            for height_limit in carpark.get("heightLimits"):
+                height_limit_info = {
+                    "park_id": park_id,
+                    "height": height_limit.get("height"),
+                    "remark": height_limit.get("remark")
+                }
+                height_limits.append(height_limit_info)
+        return height_limits
+
     def get_opening_hours(self, park_id: str) -> list:
         """Takes in the park_id and returns the opening hours of that car park."""
         carpark = pd.DataFrame(self.info).set_index("park_Id").loc[str(park_id)]
@@ -196,31 +204,75 @@ class CarparkScraper(Scraper):
 
     def get_charges(self, park_id: str, mode: str):
         """Takes in the park_id and returns the charges information of that car park."""
-        if not mode in ("privileges", "monthlyCharges", "hourlyCharges", "dayNightParks"):
+        if not mode in ("privileges", "monthlyCharges", "hourlyCharges", "dayNightParks", "unloadings"):
             raise ValueError("Please try again with other mode of charges.")
         carpark = pd.DataFrame(self.info).set_index("park_Id").loc[str(park_id)]
 
-        charge_result = None
+        charges = []
+        # Check if the carpark has the vehicle type information
         if not carpark.get(self.vehicle_type) in (None, np.nan):
             if not carpark.get(self.vehicle_type).get(mode) in (None, np.nan):
-                charge = carpark.get(self.vehicle_type).get(mode)[0]
-                charge_result = {
-                    "park_id": park_id,
-                    "weekdays": charge.get("weekdays"),
-                    "exclude_public_holiday": charge.get("excludePublicHoliday"),
-                    "period_start": charge.get("periodStart"),
-                    "period_end": charge.get("periodEnd"),
-                    "price": charge.get("price"),
-                    "description": charge.get("description"),
-                    "type": charge.get("type"),
-                    "covered": charge.get("covered"),
-                    "valid_until": charge.get("validUntil"),
-                    "space": carpark.get("space"),
-                    "space_dis": carpark.get("spaceDIS"),
-                    "space_ev": carpark.get("spaceEV"),
-                    "space_unl": carpark.get("spaceUNL")
-                }
-        return charge_result
+                for charge in carpark.get(self.vehicle_type).get(mode):
+                    charge_clean = {}
+                    if mode == "hourlyCharges":
+                        charge_clean = {
+                        "park_id": park_id,
+                        "type": charge.get("type"),
+                        "weekdays": charge.get("weekdays"),
+                        "exclude_public_holiday": charge.get("excludePublicHoliday"),
+                        "period_start": charge.get("periodStart"),
+                        "period_end": charge.get("periodEnd"),
+                        "price": charge.get("price"),
+                        "usage_thresholds": charge.get("usageThresholds"),
+                        "covered": charge.get("covered"),
+                        "remark": charge.get("remark"),
+                    }
+                    elif mode == "monthlyCharges":
+                        charge_clean = {
+                            "park_id": park_id,
+                            "type": charge.get("type"),
+                            "price": charge.get("price"),
+                            "ranges": charge.get("ranges"), # Check the ranges again, it needed to be refined but returned results are mostly None
+                            "covered": charge.get("covered"),
+                            "reserved": charge.get("reserved"),
+                            "remark": charge.get("remark")
+                        }
+                    elif mode == "dayNightParks":
+                        charge_clean = {
+                            "park_id": park_id,
+                            "type": charge.get("type"),
+                            "weekday": charge.get("weekdays"),
+                            "exclude_public_holiday": charge.get("excludePublicHoliday"),
+                            "period_start": charge.get("periodStart"),
+                            "period_end": charge.get("periodEnd"),
+                            "valid_until": charge.get("validUntil"),
+                            "valid_until_end": charge.get("validUntilEnd"),
+                            "price": charge.get("price"),
+                            "covered": charge.get("covered"),
+                            "remark": charge.get("remark")
+                        }
+                    elif mode == "priveleges":
+                        charge_clean = {
+                            "park_id": park_id,
+                            "exclude_public_holiday": charge.get("excludePublicHoliday"),
+                            "period_start": charge.get("periodStart"),
+                            "period_end": charge.get("periodEnd"),
+                            "description": charge.get("description"),
+                        }
+                    elif mode == "unloadings":
+                        charge_clean = {
+                            "park_id": park_id,
+                            "type": charge.get("type"),
+                            "price": charge.get("price"),
+                            "usage_thresholds": charge.get("usageThresholds"),
+                            "remark": charge.get("remark")
+                        }
+                    charge_clean["space"] = carpark.get(self.vehicle_type).get("space"),
+                    charge_clean["space_dis"] = carpark.get(self.vehicle_type).get("spaceDIS"),
+                    charge_clean["space_ev"] = carpark.get(self.vehicle_type).get("spaceEV"),
+                    charge_clean["space_unl"] = carpark.get(self.vehicle_type).get("spaceUNL")
+                    charges.append(charge_clean)
+        return charges
 
 
     # def get_df(self, data: str="charges") -> pd.DataFrame:
@@ -229,92 +281,6 @@ class CarparkScraper(Scraper):
     #
     #
     #     return
-'''
-def get_charges_df(all_info: dict, vehicle_type: str) -> pd.DataFrame:
-    """Takes in a dictionary of carpark info and returns a DataFrame of vacancy information for the specified vehicle type."""
-
-    def get_charges(single_info: dict, charges_type: str) -> list:
-        """Takes in a dictionary of carpark info and returns a list of charges information for the specified vehicle type."""
-        # Get information on the weekdays and weekend charges
-        car_type = single_info.get(vehicle_type)
-        blank_dict = {
-            "park_id": single_info.get("park_Id"),
-            "name": single_info.get("name"),
-            "vehicle_type": vehicle_type
-        }
-        if car_type is None:
-            print(
-                f"There is no {vehicle_type} information in the carpark info dictionary: {single_info.get('park_Id')}")
-            return
-
-        charges = None
-        # Try to get hourly charges regarding this vehicle type
-        if not car_type.get(charges_type) is None:
-            charges = []
-            # Iterate through the list of hourly_charges
-            for charge in car_type.get(charges_type):
-                if charges_type == "hourlyCharges":
-                    charge = {
-                        "park_id": single_info.get("park_Id"),
-                        "name": single_info.get("name"),
-                        "vehicle_type": vehicle_type,
-                        "weekdays": charge.get("weekdays"),
-                        "exclude_ph": charge.get("excludePublicHoliday"),
-                        "remark": charge.get("remark"),
-                        "usage_minimum": charge.get("usageMinimum"),
-                        "covered": charge.get("covered"),
-                        "type": charge.get("type"),
-                        "price": charge.get("price"),
-                        "period_start": charge.get("periodStart"),
-                        "period_end": charge.get("periodEnd")
-                    }
-                elif charges_type == "monthlyCharges":
-                    charge = {
-                        "park_id": single_info.get("park_Id"),
-                        "name": single_info.get("name"),
-                        "vehicle_type": vehicle_type,
-                        "covered": charge.get("covered"),
-                        "price": charge.get("price"),
-                        "reserved": charge.get("reserved"),
-                        "type": charge.get("type")
-                    }
-                elif charges_type == "dayNightParks":
-                    charge = {
-                        "park_id": single_info.get("park_Id"),
-                        "name": single_info.get("name"),
-                        "vehicle_type": vehicle_type,
-                        "exclude_ph": charge.get("excludePublicHoliday"),
-                        "period_start": charge.get("periodStart"),
-                        "period_end": charge.get("periodEnd"),
-                        "price": charge.get("price"),
-                        "type": charge.get("type"),
-                        "covered": charge.get("covered"),
-                        "valid_until": charge.get("validUntil")
-                    }
-                elif charges_type == "privileges":
-                    print(f"Privileges is not supported for carpark {_} yet (carpark_id {single_info.get('park_Id')})")
-                    break
-                if not charge is None:
-                    charges.append(charge)
-        return charges
-
-    info_list = []
-    for _ in range(len(all_info)):
-        hourly = get_charges(single_info=all_info[_], charges_type="hourlyCharges")
-        monthly = get_charges(single_info=all_info[_], charges_type="monthlyCharges")
-        day_night = get_charges(single_info=all_info[_], charges_type="dayNightParks")
-        privileges = get_charges(single_info=all_info[_], charges_type="privileges")
-        if not hourly is None:
-            info_list.append(hourly)
-        if not monthly is None:
-            info_list.append(monthly)
-        if not day_night is None:
-            info_list.append(day_night)
-    return_df = None
-    if not len(info_list) == 0:
-        return_df = pd.DataFrame(np.hstack(info_list).tolist())
-    return return_df
-'''
 
 def get_public_holiday() -> np.ndarray:
     # Define a ph_dict to hold all the public holidays
@@ -345,30 +311,33 @@ def get_public_holiday() -> np.ndarray:
 
     return ph_array
 
-
-
 if __name__ == "__main__":
-    pc, mc = CarparkScraper(vehicle_type="privateCar"), CarparkScraper(vehicle_type="motorCycle")
+    pc, mc = CarparkScraper(vehicle_type="coach"), CarparkScraper(vehicle_type="motorCycle")
     pc.get_data(data="info")
     pc.get_data(data="vacancy")
     mc.get_data(data="info")
     mc.get_data(data="vacancy")
-    mc_list = []
-    basicinfo= []
+    oh_list, info_list, hl_list, charge_list = [], [], [], []
     for id in pc.park_ids:
+        print(id)
         basic_info = pc.get_basic_info(park_id=id)
-        # charges = pc.get_charges(park_id=id, mode="hourlyCharges")
-        # if not charges is None:
-        #     pc_list.append(charges)
-        opening_hours = pc.get_opening_hours(park_id=id)
-        if not opening_hours is None:
-            mc_list.extend(opening_hours)
+        charges = pc.get_charges(park_id=id, mode="privileges")
+        if not charges is None:
+            charge_list.extend(charges)
+        # opening_hours = pc.get_opening_hours(park_id=id)
+        # height_limits = pc.get_height_limits(park_id=id)
+        # if not opening_hours is None:
+        #     oh_list.extend(opening_hours)
         if not basic_info is None:
-            basicinfo.append(basic_info)
+            info_list.append(basic_info)
+        # if not height_limits is None:
+        #     hl_list.extend(height_limits)
 
-    info_df = pd.DataFrame(basicinfo)
+    info_df = pd.DataFrame(info_list)
     # pc_charges_df = pd.DataFrame(pc_list)
-    pc_opening_hours_df = pd.DataFrame(mc_list)
+    pc_opening_hours_df = pd.DataFrame(oh_list)
+    pc_height_limits_df = pd.DataFrame(hl_list)
+    pc_charges_df = pd.DataFrame(charge_list)
 
     address_pc = pd.DataFrame(pc.get_address(park_id=pc.park_ids[0]))
     graceperiods_pc = pd.DataFrame(pc.get_grace_periods(park_id=pc.park_ids[0]))
