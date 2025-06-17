@@ -229,7 +229,7 @@ class CarparkScraper(Scraper):
     #
     #
     #     return
-
+'''
 def get_charges_df(all_info: dict, vehicle_type: str) -> pd.DataFrame:
     """Takes in a dictionary of carpark info and returns a DataFrame of vacancy information for the specified vehicle type."""
 
@@ -314,7 +314,7 @@ def get_charges_df(all_info: dict, vehicle_type: str) -> pd.DataFrame:
     if not len(info_list) == 0:
         return_df = pd.DataFrame(np.hstack(info_list).tolist())
     return return_df
-
+'''
 
 def get_public_holiday() -> np.ndarray:
     # Define a ph_dict to hold all the public holidays
