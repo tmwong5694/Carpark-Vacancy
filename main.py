@@ -137,7 +137,7 @@ class CarparkScraper(Scraper):
     def get_address(self, park_id: str):
         """Takes in the park_id and return the address of that car park."""
         carpark = pd.DataFrame(self.info).set_index("park_Id").loc[str(park_id)]
-        return_address = {"full_address": carpark.get("displayAddress")}
+        return_address = {"park_id": park_id, "full_address": carpark.get("displayAddress")}
         if not carpark.get("address") in (None, np.nan):
             address = carpark["address"]
             return_address["unit_no"] = address.get("unitNo"),
@@ -339,7 +339,14 @@ if __name__ == "__main__":
     pc_height_limits_df = pd.DataFrame(hl_list)
     pc_charges_df = pd.DataFrame(charge_list)
 
-    address_pc = pd.DataFrame(pc.get_address(park_id=pc.park_ids[0]))
+    # address_list = []
+    # address_list.extend(pc.get_address(park_id=pc.park_ids[0]))
+    address_result = pc.get_address(park_id=pc.park_ids[0])
+    if len(address_result) > 1:
+        address_pc = pd.DataFrame([address_result])
+    elif len(address_result) == 1:
+        address_pc = pd.DataFrame([address_result])
+
     graceperiods_pc = pd.DataFrame(pc.get_grace_periods(park_id=pc.park_ids[0]))
 
 
