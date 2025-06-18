@@ -41,8 +41,23 @@ class CarparkScraper(Scraper):
         vehicleTypes = "privateCar", "LGV", "HGV", "CV", "coach", "motorCycle"
         lang = "en_US", "zh_TW", "zh_CN"
         """
-
+        # Check if the data type is valid
         self.check_input(data=data, vehicle_type=self.vehicle_type, lang=lang)
+
+        params = {
+            "data": data,
+            "vehicleTypes": self.vehicle_type,
+            "lang": lang
+        }
+        if not carpark_id is None:
+            params["carparkIds"] = carpark_id
+        if not extent is None:
+            params["extent"] = extent
+
+
+        body = urllib.parse.urlencode(params).encode("utf-8")
+
+        request =
 
         # Get response from the Carpark Vacancy API
         if carpark_id is None and extent is None:
@@ -312,7 +327,7 @@ def get_public_holiday() -> np.ndarray:
     return ph_array
 
 if __name__ == "__main__":
-    pc, mc = CarparkScraper(vehicle_type="coach"), CarparkScraper(vehicle_type="motorCycle")
+    pc, mc = CarparkScraper(vehicle_type="privateCar"), CarparkScraper(vehicle_type="motorCycle")
     pc.get_data(data="info")
     pc.get_data(data="vacancy")
     mc.get_data(data="info")
@@ -339,13 +354,11 @@ if __name__ == "__main__":
     pc_height_limits_df = pd.DataFrame(hl_list)
     pc_charges_df = pd.DataFrame(charge_list)
 
-    # address_list = []
-    # address_list.extend(pc.get_address(park_id=pc.park_ids[0]))
     address_result = pc.get_address(park_id=pc.park_ids[0])
-    if len(address_result) > 1:
-        address_pc = pd.DataFrame([address_result])
-    elif len(address_result) == 1:
-        address_pc = pd.DataFrame([address_result])
+    if isinstance(address_result, list):
+        address_df = pd.DataFrame(address_result)
+    elif isinstance(address_result, dict):
+        address_df = pd.DataFrame([address_result])
 
     graceperiods_pc = pd.DataFrame(pc.get_grace_periods(park_id=pc.park_ids[0]))
 
