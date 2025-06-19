@@ -336,10 +336,12 @@ def get_public_holiday() -> np.ndarray:
     return ph_array
 
 if __name__ == "__main__":
+    # Initialize the vehicle type
     pc = CarparkScraper(vehicle_type="privateCar")
     # Get the data first
     pc.get_data(data="info")
+    # Get the df for different data inquired
     charges = pc.get_df(info="charges", park_mode="hourlyCharges")
-    # grace_periods = pc.get_df(info="basic_info")
+    grace_periods = pc.get_df(info="basic_info")
 
     print("End of program.")
