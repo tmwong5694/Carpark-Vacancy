@@ -71,7 +71,7 @@ class CarparkScraper(Scraper):
             print("Response code:", response.getcode())
         except urllib.error.HTTPError as HTTPError:
             print(f"Error: Unable to connect to the API:\n{HTTPError}")
-            exit(1)
+
         results = response_data["results"]
         if data == "info":
             self.info = results
@@ -299,7 +299,7 @@ class CarparkScraper(Scraper):
                     self.method = self.address
                 element = self.method(park_id=id)
             # These two functions return dict
-            if info in ("basic_info", "address"):
+            if info in ("basic_info", "address", "vacancy"):
                 append_list.append(element)
             # These functions return list
             else:
@@ -338,10 +338,11 @@ def get_public_holiday() -> np.ndarray:
 if __name__ == "__main__":
     # Initialize the vehicle type
     pc = CarparkScraper(vehicle_type="privateCar")
-    # Get the data first
+    # Get data before retrieving data
     pc.get_data(data="info")
     # Get the df for different data inquired
     charges = pc.get_df(info="charges", park_mode="hourlyCharges")
     grace_periods = pc.get_df(info="basic_info")
-
-    print("End of program.")
+    # Get vacancy before retrieving data
+    pc.get_data(data="vacancy")
+    vacancy = pc.get_df(info="vacancy")
