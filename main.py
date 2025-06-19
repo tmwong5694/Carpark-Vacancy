@@ -7,6 +7,7 @@ import sys
 from Scraper import *
 from bs4 import BeautifulSoup
 from urllib.request import urlopen
+from urllib.parse import urlencode
 import urllib
 
 
@@ -16,9 +17,10 @@ class CarparkScraper(Scraper):
     def __init__(self, vehicle_type: str, lang: str="zh_TW"):
         self.vehicle_type = vehicle_type
         self.lang = lang
-        self.info = None
+        self.info = self.get_data(data="info")
         self.vacancy = None
         self.park_ids = None
+
 
     def check_input(self, data: str, vehicle_type: str, lang: str) -> None:
         """Validate the input of params"""
@@ -54,27 +56,22 @@ class CarparkScraper(Scraper):
         if not extent is None:
             params["extent"] = extent
 
+        base_url = "https://api.data.gov.hk/v1/carpark-info-vacancy"
 
-        body = urllib.parse.urlencode(params).encode("utf-8")
+        # Encode parameters as query string
+        query_string = urlencode(params)
 
-        request =
+        # Construct full URL with query parameters
+        full_url = f"{base_url}?{query_string}"
 
-        # Get response from the Carpark Vacancy API
-        if carpark_id is None and extent is None:
-            input_url = f"https://api.data.gov.hk/v1/carpark-info-vacancy?data={data}&vehicleTypes={self.vehicle_type}&lang={lang}"
-        elif not carpark_id is None and extent is None:
-            input_url = f"https://api.data.gov.hk/v1/carpark-info-vacancy?data={data}&vehicleTypes={self.vehicle_type}&carparkIds={carpark_id}&lang={lang}"
-        elif carpark_id is None and not extent is None:
-            input_url = f"https://api.data.gov.hk/v1/carpark-info-vacancy?data={data}&vehicleTypes={self.vehicle_type}&extent={extent}&lang={lang}"
         try:
-            with urlopen(input_url) as response:
+            with urlopen(full_url) as response:
                 response_data = response.read().decode("utf-8")
                 response_data = json.loads(response_data)  # Parse the response data
             print("Response code:", response.getcode())
         except urllib.error.HTTPError as HTTPError:
             print(f"Error: Unable to connect to the API:\n{HTTPError}")
             exit(1)
-        # results = pd.DataFrame(response_data["results"]).loc[:, ["park_Id", self.vehicle_type]]
         results = response_data["results"]
         if data == "info":
             self.info = results
@@ -124,16 +121,6 @@ class CarparkScraper(Scraper):
             "website": carpark.get("website")
         }
 
-        address = carpark.get("address")
-        if not address in (None, np.nan):
-            basic_info["floor"] = address.get("floor")
-            basic_info["building_name"] = address.get("buildingName")
-            basic_info["street_name"] = address.get("streetName")
-            basic_info["building_no"] = address.get("buildingNo")
-            basic_info["sub_district"] = address.get("subDistrict")
-            basic_info["dc_district"] = address.get("dcDistrict")
-            basic_info["region"] = address.get("region")
-
         rendition_urls = carpark.get("renditionUrls")
         if not rendition_urls in (None, np.nan):
             basic_info["square"] = rendition_urls.get("square")
@@ -141,15 +128,9 @@ class CarparkScraper(Scraper):
             basic_info["banner"] = rendition_urls.get("banner")
             basic_info["carpark_photo"] = rendition_urls.get("carpark_photo")
 
-        # if not carpark.get("openingHours") in (None, np.nan):
-        #     opening_hours_weekdays = carpark["openingHours"][0]
-        #     basic_info["weekdays_open"] = opening_hours_weekdays.get("weekdays")
-        #     basic_info["exclude_public_holiday"] = opening_hours_weekdays.get("excludePublicHoliday")
-        #     basic_info["period_start"] = opening_hours_weekdays.get("periodStart")
-        #     basic_info["period_end"] = opening_hours_weekdays.get("periodEnd")
         return basic_info
 
-    def get_address(self, park_id: str):
+    def get_address(self, park_id: str) -> dict:
         """Takes in the park_id and return the address of that car park."""
         carpark = pd.DataFrame(self.info).set_index("park_Id").loc[str(park_id)]
         return_address = {"park_id": park_id, "full_address": carpark.get("displayAddress")}
@@ -186,7 +167,7 @@ class CarparkScraper(Scraper):
                 grace_periods.append(grace_period)
         return grace_periods
 
-    def get_height_limits(self, park_id):
+    def get_height_limits(self, park_id) -> list:
         """Takes in the park_id and returns the height limits of that car park."""
         carpark = pd.DataFrame(self.info).set_index("park_Id").loc[str(park_id)]
         height_limits = []
@@ -217,7 +198,7 @@ class CarparkScraper(Scraper):
                 opening_hours.append(opening_hour)
         return opening_hours
 
-    def get_charges(self, park_id: str, mode: str):
+    def get_charges(self, park_id: str, mode: str) -> list:
         """Takes in the park_id and returns the charges information of that car park."""
         if not mode in ("privileges", "monthlyCharges", "hourlyCharges", "dayNightParks", "unloadings"):
             raise ValueError("Please try again with other mode of charges.")
@@ -247,7 +228,8 @@ class CarparkScraper(Scraper):
                             "park_id": park_id,
                             "type": charge.get("type"),
                             "price": charge.get("price"),
-                            "ranges": charge.get("ranges"), # Check the ranges again, it needed to be refined but returned results are mostly None
+                            # TODO: Check the ranges again, it needed to be refined but returned results are mostly None
+                            "ranges": charge.get("ranges"),
                             "covered": charge.get("covered"),
                             "reserved": charge.get("reserved"),
                             "remark": charge.get("remark")
@@ -290,12 +272,39 @@ class CarparkScraper(Scraper):
         return charges
 
 
-    # def get_df(self, data: str="charges") -> pd.DataFrame:
-    #     """Get the DataFrame of the relevant information"""
-    #     append_list = [self.get_charges()]
-    #
-    #
-    #     return
+    def get_df(self, info: str, park_mode: (str, None)=None) -> pd.DataFrame:
+        """Get the DataFrame of the relevant information"""
+
+        append_list = []
+        for id in self.park_ids:
+            # Match method to different functions according to input value
+            if info == "charges":
+                self.method = self.get_charges
+                # Get_charges function need to specify mode of parking
+                if park_mode is None:
+                    raise ValueError("Please provide the parking mode.")
+                element = self.method(mode=park_mode, park_id=id)
+            else:
+                if info == "vacancy":
+                    self.method = self.get_vacancy
+                elif info == "grace_periods":
+                    self.method = self.get_grace_periods
+                elif info == "height_limits":
+                    self.method = self.get_height_limits
+                elif info == "opening_hours":
+                    self.method = self.get_opening_hours
+                elif info == "basic_info":
+                    self.method = self.get_basic_info
+                elif info == "address":
+                    self.method = self.address
+                element = self.method(park_id=id)
+            # These two functions return dict
+            if info in ("basic_info", "address"):
+                append_list.append(element)
+            # These functions return list
+            else:
+                append_list.extend(element)
+        return pd.DataFrame(append_list)
 
 def get_public_holiday() -> np.ndarray:
     # Define a ph_dict to hold all the public holidays
@@ -327,40 +336,10 @@ def get_public_holiday() -> np.ndarray:
     return ph_array
 
 if __name__ == "__main__":
-    pc, mc = CarparkScraper(vehicle_type="privateCar"), CarparkScraper(vehicle_type="motorCycle")
+    pc = CarparkScraper(vehicle_type="privateCar")
+    # Get the data first
     pc.get_data(data="info")
-    pc.get_data(data="vacancy")
-    mc.get_data(data="info")
-    mc.get_data(data="vacancy")
-    oh_list, info_list, hl_list, charge_list = [], [], [], []
-    for id in pc.park_ids:
-        print(id)
-        basic_info = pc.get_basic_info(park_id=id)
-        charges = pc.get_charges(park_id=id, mode="privileges")
-        if not charges is None:
-            charge_list.extend(charges)
-        # opening_hours = pc.get_opening_hours(park_id=id)
-        # height_limits = pc.get_height_limits(park_id=id)
-        # if not opening_hours is None:
-        #     oh_list.extend(opening_hours)
-        if not basic_info is None:
-            info_list.append(basic_info)
-        # if not height_limits is None:
-        #     hl_list.extend(height_limits)
-
-    info_df = pd.DataFrame(info_list)
-    # pc_charges_df = pd.DataFrame(pc_list)
-    pc_opening_hours_df = pd.DataFrame(oh_list)
-    pc_height_limits_df = pd.DataFrame(hl_list)
-    pc_charges_df = pd.DataFrame(charge_list)
-
-    address_result = pc.get_address(park_id=pc.park_ids[0])
-    if isinstance(address_result, list):
-        address_df = pd.DataFrame(address_result)
-    elif isinstance(address_result, dict):
-        address_df = pd.DataFrame([address_result])
-
-    graceperiods_pc = pd.DataFrame(pc.get_grace_periods(park_id=pc.park_ids[0]))
-
+    charges = pc.get_df(info="charges", park_mode="hourlyCharges")
+    # grace_periods = pc.get_df(info="basic_info")
 
     print("End of program.")
