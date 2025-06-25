@@ -12,8 +12,6 @@ from urllib.parse import urlencode
 import urllib
 
 
-# the_url = "https://api.data.gov.hk/v1/carpark-info-vacancy?data=vacancy&vehicleTypes=privateCar&lang=zh_TW"
-
 class CarparkScraper(Scraper):
     def __init__(self, vehicle_type: str, lang: str="zh_TW"):
         self.vehicle_type = vehicle_type
@@ -247,7 +245,6 @@ class CarparkScraper(Scraper):
                             "body": {
                                 "type": charge.get("type"),
                                 "price": charge.get("price"),
-                                # TODO: Check the ranges again, it needed to be refined but returned results are mostly None
                                 "ranges": charge.get("ranges"),
                                 "covered": charge.get("covered"),
                                 "reserved": charge.get("reserved"),
@@ -298,10 +295,10 @@ class CarparkScraper(Scraper):
         return charges
 
 
-    def save_json(self, info: str, park_mode: (str, None)=None) -> pd.DataFrame:
+    def save_json(self, destination: str, info: str, park_mode: (str, None)=None) -> pd.DataFrame:
         """Get the DataFrame of the relevant information"""
 
-        append_list = []
+        jsons = []
         for id in self.park_ids:
             # Match method to different functions according to input value
             if info == "charges":
@@ -325,24 +322,18 @@ class CarparkScraper(Scraper):
                     self.method = self.address
                 element = self.method(park_id=id)
                 
-            append_list.append(element)
-            # These two functions return dict, append instead of extend
-            # if info in ("basic_info", "address", "vacancy"):
-                # append_list.append(element)
-            # These functions return list, extend instead of append
-            # else:
-                # append_list.extend(element)
-        append_list = json.dumps(append_list)
+            jsons.append(element)
+            
+        jsons = json.dumps(jsons)
 
 
-        folder_path = "./data"
-        os.makedirs(folder_path, exist_ok=True)
+        
+        os.makedirs(destination, exist_ok=True)
 
-        with open(os.path.join(folder_path, info) + ".json", "w") as file:
+        with open(os.path.join(destination, info) + ".json", "w") as file:
             json.dump(append_list, file, indent=4)
 
-        # return pd.DataFrame(append_list)
-        return append_list
+        return jsons
 
 def get_public_holiday() -> np.ndarray:
     # Define a ph_dict to hold all the public holidays
@@ -378,16 +369,15 @@ if __name__ == "__main__":
     pc = CarparkScraper(vehicle_type="privateCar")
     # Get data before retrieving data
     pc.get_data(data="info")
-    # # Get the df for different data inquired
-    # charges = pc.get_df(info="charges", park_mode="hourlyCharges")
-    # grace_periods = pc.get_df(info="basic_info")
     # Get vacancy before retrieving data
     pc.get_data(data="vacancy")
-    vacancy = pc.save_json(info="vacancy")
-    # data = pc.save_json(info="basic_info")
+    
+    folder_path = "./data"
+    vacancy = pc.save_json(info="vacancy", destination=folder_path)
 
-    # print(vacancy.info())
-    # print(vacancy.describe())
+
+    data = pc.save_json(info="basic_info", destination=folder_path)
+
 
     with open("./data/vacancy.json", "r") as f:
         string = json.load(f)
