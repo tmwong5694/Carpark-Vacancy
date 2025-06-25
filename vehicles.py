@@ -319,19 +319,18 @@ class CarparkScraper(Scraper):
                 elif info == "basic_info":
                     self.method = self.get_basic_info
                 elif info == "address":
-                    self.method = self.address
+                    self.method = self.get_address
                 element = self.method(park_id=id)
-                
             jsons.append(element)
             
         jsons = json.dumps(jsons)
-
-
-        
+        # Continue if the desired folder path already exists
         os.makedirs(destination, exist_ok=True)
 
-        with open(os.path.join(destination, info) + ".json", "w") as file:
-            json.dump(append_list, file, indent=4)
+        # Include vehicle type into the destination
+        file_name = os.path.join(destination, self.vehicle_type, info) + ".json"
+        with open(file_name, "w") as file:
+            json.dump(jsons, file, indent=4)
 
         return jsons
 
@@ -373,10 +372,8 @@ if __name__ == "__main__":
     pc.get_data(data="vacancy")
     
     folder_path = "./data"
-    vacancy = pc.save_json(info="vacancy", destination=folder_path)
+    new_json = pc.save_json(info="height_limits", destination=folder_path)
 
-
-    data = pc.save_json(info="basic_info", destination=folder_path)
 
 
     with open("./data/vacancy.json", "r") as f:
