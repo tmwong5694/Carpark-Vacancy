@@ -295,7 +295,7 @@ class CarparkScraper(Scraper):
         return charges
 
 
-    def save_json(self, destination: str, info: str, park_mode: (str, None)=None) -> pd.DataFrame:
+    def save_json(self, destination: str, info: str, park_mode: (str, None)=None) -> list:
         """Get the DataFrame of the relevant information"""
 
         jsons = []
@@ -323,14 +323,17 @@ class CarparkScraper(Scraper):
                 element = self.method(park_id=id)
             jsons.append(element)
             
-        jsons = json.dumps(jsons)
-        # Continue if the desired folder path already exists
+        jsons_str = json.dumps(jsons)
+
+        # Add new folders of vehicle types into the directory to separate data
+        destination = os.path.join(destination, self.vehicle_type)
+        # Make the desired destination and continue if the desired destination already exists
         os.makedirs(destination, exist_ok=True)
 
         # Include vehicle type into the destination
-        file_name = os.path.join(destination, self.vehicle_type, info) + ".json"
+        file_name = os.path.join(destination, info + ".json")
         with open(file_name, "w") as file:
-            json.dump(jsons, file, indent=4)
+            json.dump(jsons_str, file, indent=4)
 
         return jsons
 
@@ -372,11 +375,6 @@ if __name__ == "__main__":
     pc.get_data(data="vacancy")
     
     folder_path = "./data"
-    new_json = pc.save_json(info="height_limits", destination=folder_path)
-
-
-
-    with open("./data/vacancy.json", "r") as f:
-        string = json.load(f)
+    new_json = pc.save_json(info="address", destination=folder_path)
 
     pass
