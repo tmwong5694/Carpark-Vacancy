@@ -3,6 +3,7 @@ import json
 import numpy as np
 import pandas as pd
 import re
+import sqlite3
 import sys
 import os
 from Scraper import *
@@ -85,18 +86,16 @@ class CarparkScraper(Scraper):
         carpark = pd.DataFrame(self.vacancy).set_index("park_Id").loc[str(park_id)]
         # Return none if vacancy for the vehicle type is unavailable
         vacancy = None
-        if not carpark.get(self.vehicle_type) in (None, np.nan):
+        if not carpark.get(self.vehicle_type) is np.nan:
             # Extract info from the dictionary of carpark vacancy
             vacancy_raw = carpark.get(self.vehicle_type)[0]
             vacancy = {
                 "park_id": park_id,
-                "body": {
-                    "vehicle_type": self.vehicle_type,
-                    "vacancy_type": vacancy_raw.get("vacancy_type"),
-                    # Checkout what does vacancy type = "A" means in the data dict
-                    "vacancy": vacancy_raw.get("vacancy"),
-                    "last_update": vacancy_raw.get("lastupdate")
-                }
+                "vehicle_type": self.vehicle_type,
+                "vacancy_type": vacancy_raw.get("vacancy_type"),
+                # Checkout what does vacancy type = "A" means in the data dict
+                "vacancy": vacancy_raw.get("vacancy"),
+                "last_update": vacancy_raw.get("lastupdate")
             }
         return vacancy
 
@@ -105,32 +104,30 @@ class CarparkScraper(Scraper):
         carpark = pd.DataFrame(self.info).set_index("park_Id").loc[str(park_id)]
         basic_info = {
             "park_id": park_id,
-            "body": {
-                "name": carpark.get("name"),
-                "nature": carpark.get("nature"),
-                "carpark_type": carpark.get("carpark_Type"),
-                "full_address": carpark.get("displayAddress"),  # Full address
-                "district": carpark.get("district"),
-                "latitude": carpark.get("latitude"),
-                "longitude": carpark.get("longitude"),
-                "contact_no": carpark.get("contactNo"),
-                "opening_status": carpark.get("opening_status"),
-                "facilities": carpark.get("facilities"),
-                "payment_method": carpark.get("paymentMethods"),
-                "creation_date": carpark.get("creationDate"),
-                "modified_date": carpark.get("modifiedDate"),
-                "published_date": carpark.get("publishedDate"),
-                "website": carpark.get("website")
-            }
+            "name": carpark.get("name"),
+            "nature": carpark.get("nature"),
+            "carpark_type": carpark.get("carpark_Type"),
+            "full_address": carpark.get("displayAddress"),  # Full address
+            "district": carpark.get("district"),
+            "latitude": carpark.get("latitude"),
+            "longitude": carpark.get("longitude"),
+            "contact_no": carpark.get("contactNo"),
+            "opening_status": carpark.get("opening_status"),
+            "facilities": str(carpark.get("facilities")),
+            "payment_method": str(carpark.get("paymentMethods")),
+            "creation_date": carpark.get("creationDate"),
+            "modified_date": carpark.get("modifiedDate"),
+            "published_date": carpark.get("publishedDate"),
+            "website": carpark.get("website")
         }
 
         rendition_urls = carpark.get("renditionUrls")
-        if not rendition_urls in (None, np.nan):
-            basic_info["body"]["square"] = rendition_urls.get("square")
-            basic_info["body"]["thumbnail"] = rendition_urls.get("thumbnail")
-            basic_info["body"]["banner"] = rendition_urls.get("banner")
-            basic_info["body"]["carpark_photo"] = rendition_urls.get("carpark_photo")
-
+        if not rendition_urls is np.nan:
+            basic_info["square"] = rendition_urls.get("square")
+            basic_info["thumbnail"] = rendition_urls.get("thumbnail")
+            basic_info["banner"] = rendition_urls.get("banner")
+            basic_info["carpark_photo"] = rendition_urls.get("carpark_photo")
+        basic_info = [basic_info]
         return basic_info
 
     def get_address(self, park_id: str) -> dict:
@@ -138,41 +135,83 @@ class CarparkScraper(Scraper):
         carpark = pd.DataFrame(self.info).set_index("park_Id").loc[str(park_id)]
         return_address = {
             "park_id": park_id,
-            "body": {
-                "full_address": carpark.get("displayAddress")
-                }
-            }
-        if not carpark.get("address") in (None, np.nan):
+            "full_address": carpark.get("displayAddress")
+        }
+        if not carpark.get("address") is np.nan:
             address = carpark["address"]
-            return_address["body"]["unit_no"] = address.get("unitNo"),
-            return_address["body"]["unit_descriptor"] = address.get("unitDescriptor"),
-            return_address["body"]["floor"] = address.get("floor"),
-            return_address["body"]["block_no"] = address.get("blockNo"),
-            return_address["body"]["block_descriptor"] = address.get("blockDescriptor"),
-            return_address["body"]["building_name"] = address.get("buildingName"),
-            return_address["body"]["phase"] = address.get("phase"),
-            return_address["body"]["estate_name"] = address.get("estateName"),
-            return_address["body"]["village_name"] = address.get("villageName"),
-            return_address["body"]["street_name"] = address.get("streetName"),
-            return_address["body"]["building_no"] = address.get("buildingNo"),
-            return_address["body"]["sub_district"] = address.get("subDistrict"),
-            return_address["body"]["dc_district"] = address.get("dcDistrict"),
-            return_address["body"]["region"] = address.get("region")
+            unit_no = address.get("unitNo")
+            if isinstance(unit_no, tuple):
+                unit_no = unit_no[0]
+            unit_descriptor = address.get("unitDescriptor")
+            if isinstance(unit_descriptor, tuple):
+                unit_descriptor = unit_descriptor[0]
+            floor = address.get("floor")
+            if isinstance(floor, tuple):
+                floor = floor[0]
+            block_no = address.get("blockNo")
+            if isinstance(block_no, tuple):
+                block_no = block_no[0]
+            block_descriptor = address.get("blockDescriptor")
+            if isinstance(block_descriptor, tuple):
+                block_descriptor = block_descriptor[0]
+            building_name = address.get("buildingName")
+            if isinstance(building_name, tuple):
+                building_name = building_name[0]
+            phase = address.get("phase")
+            if isinstance(phase, tuple):
+                phase = phase[0]
+            estate_name = address.get("estateName")
+            if isinstance(estate_name, tuple):
+                estate_name = estate_name[0]
+            village_name = address.get("villageName")
+            if isinstance(village_name, tuple):
+                village_name = village_name[0]
+            street_name = address.get("streetName")
+            if isinstance(street_name, tuple):
+                street_name = street_name[0]
+            building_no = address.get("buildingNo")
+            if isinstance(building_no, tuple):
+                building_no = building_no[0]
+            sub_district = address.get("subDistrict")
+            if isinstance(sub_district, tuple):
+                sub_district = sub_district[0]
+            dc_district = address.get("dcDistrict")
+            if isinstance(dc_district, tuple):
+                dc_district = dc_district[0]
+            region = address.get("region")
+            if isinstance(region, tuple):
+                region = region[0]
+
+
+            return_address["unit_no"] = unit_no
+            return_address["unit_descriptor"] = unit_descriptor
+            return_address["floor"] = floor
+            return_address["block_no"] = block_no
+            return_address["block_descriptor"] = block_descriptor
+            return_address["building_name"] = building_name
+            return_address["phase"] = phase
+            return_address["estate_name"] = estate_name
+            return_address["village_name"] = village_name
+            return_address["street_name"] = street_name
+            return_address["building_no"] = building_no
+            return_address["sub_district"] = sub_district
+            return_address["dc_district"] = dc_district
+            return_address["region"] = region
+            
+            return_address = [return_address]
         return return_address
 
     def get_grace_periods(self, park_id: str) -> list:
         """Takes in the park_id and returns the grace periods of that car park."""
         carpark = pd.DataFrame(self.info).set_index("park_Id").loc[str(park_id)]
         grace_periods = []
-        if not carpark.get("gracePeriods") in (None, np.nan):
+        if not carpark.get("gracePeriods") is None:
             # Iterate through all the grace periods
             for period in carpark.get("gracePeriods"):
                 grace_period = {
                     "park_id": park_id,
-                    "body": {
-                        "minutes": period.get("minutes"),
-                        "remark": period.get("remark")
-                    }
+                    "minutes": period.get("minutes"),
+                    "remark": period.get("remark")
                 }
                 grace_periods.append(grace_period)
         return grace_periods
@@ -181,33 +220,31 @@ class CarparkScraper(Scraper):
         """Takes in the park_id and returns the height limits of that car park."""
         carpark = pd.DataFrame(self.info).set_index("park_Id").loc[str(park_id)]
         height_limits = []
-        if not carpark.get("heightLimits") in (None, np.nan):
+        if not carpark.get("heightLimits") is np.nan:
             for height_limit in carpark.get("heightLimits"):
                 height_limit_info = {
                     "park_id": park_id,
-                    "body": {
-                        "height": height_limit.get("height"),
-                        "remark": height_limit.get("remark")
-                    }
+                    "height": height_limit.get("height"),
+                    "remark": height_limit.get("remark")
                 }
                 height_limits.append(height_limit_info)
+        # Set park_id as key and the list of height_limits as list to return
         return height_limits
 
     def get_opening_hours(self, park_id: str) -> list:
         """Takes in the park_id and returns the opening hours of that car park."""
         carpark = pd.DataFrame(self.info).set_index("park_Id").loc[str(park_id)]
         opening_hours = []
-        if not carpark.get("openingHours") in (None, np.nan):
+        if not carpark.get("openingHours") is np.nan:
             # Iterate through all the opening hour
             for hour in carpark.get("openingHours"):
                 opening_hour = {
                     "park_id": park_id,
-                    "body": {
-                        "weekdays": hour.get("weekdays"),
-                        "exclude_public_holiday": hour.get("excludePublicHoliday"),
-                        "period_start": hour.get("periodStart"),
-                        "period_end": hour.get("periodEnd")
-                    }
+                    "weekdays": str(hour.get("weekdays")),
+                    "exclude_public_holiday": hour.get("excludePublicHoliday"),
+                    "period_start": hour.get("periodStart"),
+                    "period_end": hour.get("periodEnd")
+
                 }
                 opening_hours.append(opening_hour)
         return opening_hours
@@ -221,92 +258,105 @@ class CarparkScraper(Scraper):
         charges = []
         # Check if the carpark has the vehicle type information
         if not carpark.get(self.vehicle_type) in (None, np.nan):
-            if not carpark.get(self.vehicle_type).get(mode) in (None, np.nan):
+            if not carpark.get(self.vehicle_type).get(mode) is None:
                 for charge in carpark.get(self.vehicle_type).get(mode):
                     charge_clean = {}
                     if mode == "hourlyCharges":
                         charge_clean = {
-                        "park_id": park_id,
-                        "body": {
+                            "park_id": park_id,
                             "type": charge.get("type"),
-                            "weekdays": charge.get("weekdays"),
+                            "weekdays": str(charge.get("weekdays")),
                             "exclude_public_holiday": charge.get("excludePublicHoliday"),
                             "period_start": charge.get("periodStart"),
                             "period_end": charge.get("periodEnd"),
                             "price": charge.get("price"),
                             "usage_thresholds": charge.get("usageThresholds"),
                             "covered": charge.get("covered"),
-                            "remark": charge.get("remark"),
+                            "remark": charge.get("remark")
                         }
-                    }
+                        if not charge_clean["usage_thresholds"] is None:
+                            # Convert usage_thresholds to string
+                            charge_clean["usage_thresholds"] = str(charge_clean["usage_thresholds"][0])
                     elif mode == "monthlyCharges":
                         charge_clean = {
                             "park_id": park_id,
-                            "body": {
-                                "type": charge.get("type"),
-                                "price": charge.get("price"),
-                                "ranges": charge.get("ranges"),
-                                "covered": charge.get("covered"),
-                                "reserved": charge.get("reserved"),
-                                "remark": charge.get("remark")
-                            }
+                            "type": charge.get("type"),
+                            "price": charge.get("price"),
+                            "ranges": charge.get("ranges"),
+                            "covered": charge.get("covered"),
+                            "reserved": charge.get("reserved"),
+                            "remark": charge.get("remark")
                         }
                     elif mode == "dayNightParks":
                         charge_clean = {
                             "park_id": park_id,
-                            "body": {
-                                "type": charge.get("type"),
-                                "weekday": charge.get("weekdays"),
-                                "exclude_public_holiday": charge.get("excludePublicHoliday"),
-                                "period_start": charge.get("periodStart"),
-                                "period_end": charge.get("periodEnd"),
-                                "valid_until": charge.get("validUntil"),
-                                "valid_until_end": charge.get("validUntilEnd"),
-                                "price": charge.get("price"),
-                                "covered": charge.get("covered"),
-                                "remark": charge.get("remark")
-                            }
+                            "type": charge.get("type"),
+                            "weekdays": str(charge.get("weekdays")),
+                            "exclude_public_holiday": charge.get("excludePublicHoliday"),
+                            "period_start": charge.get("periodStart"),
+                            "period_end": charge.get("periodEnd"),
+                            "valid_until": charge.get("validUntil"),
+                            "valid_until_end": charge.get("validUntilEnd"),
+                            "price": charge.get("price"),
+                            "covered": charge.get("covered"),
+                            "remark": charge.get("remark")
                         }
-                    elif mode == "priveleges":
+                    elif mode == "privileges":
                         charge_clean = {
                             "park_id": park_id,
-                            "body": {
-                                "exclude_public_holiday": charge.get("excludePublicHoliday"),
-                                "period_start": charge.get("periodStart"),
-                                "period_end": charge.get("periodEnd"),
-                                "description": charge.get("description")
-                            }
+                            "exclude_public_holiday": charge.get("excludePublicHoliday"),
+                            "period_start": charge.get("periodStart"),
+                            "period_end": charge.get("periodEnd"),
+                            "description": charge.get("description")
                         }
                     elif mode == "unloadings":
                         charge_clean = {
                             "park_id": park_id,
-                            "body": {
-                                "type": charge.get("type"),
-                                "price": charge.get("price"),
-                                "usage_thresholds": charge.get("usageThresholds"),
-                                "remark": charge.get("remark")
-                            }
+                            "type": charge.get("type"),
+                            "price": charge.get("price"),
+                            "usage_thresholds": charge.get("usageThresholds"),
+                            "remark": charge.get("remark")
                         }
-                    charge_clean["body"]["space"] = carpark.get(self.vehicle_type).get("space"),
-                    charge_clean["body"]["space_dis"] = carpark.get(self.vehicle_type).get("spaceDIS"),
-                    charge_clean["body"]["space_ev"] = carpark.get(self.vehicle_type).get("spaceEV"),
-                    charge_clean["body"]["space_unl"] = carpark.get(self.vehicle_type).get("spaceUNL")
+                    space = carpark.get(self.vehicle_type).get("space")
+                    if isinstance(space, tuple):
+                        space = space[0]
+                    space_dis = carpark.get(self.vehicle_type).get("spaceDIS")
+                    if isinstance(space_dis, tuple):
+                        space_dis = space_dis[0]
+                    space_ev = carpark.get(self.vehicle_type).get("spaceEV")
+                    if isinstance(space_ev, tuple):
+                        space_ev = space_ev[0]
+                    space_unl = carpark.get(self.vehicle_type).get("spaceUNL")
+                    if isinstance(space_unl, tuple):
+                        space_unl = space_unl[0]
+                    charge_clean["space"] = space
+                    charge_clean["space_dis"] = space_dis
+                    charge_clean["space_ev"] = space_ev
+                    charge_clean["space_unl"] = space_unl
                     charges.append(charge_clean)
         return charges
 
 
-    def save_json(self, destination: str, info: str, park_mode: (str, None)=None) -> list:
+    def get_table(self, info: str) -> pd.DataFrame:
         """Get the DataFrame of the relevant information"""
 
-        jsons = []
+        ## Get_charges function need to specify mode of parking
+        #if info == "charges" and park_mode is None:
+        #    raise ValueError("Please provide the parking mode.")
+
+        info_list = []
         for id in self.park_ids:
-            # Match method to different functions according to input value
+            print("Currently processing " + info + " of carpark : " + id)
             if info == "charges":
+                park_modes = ("privileges", "monthlyCharges", "hourlyCharges", "dayNightParks", "unloadings")
                 self.method = self.get_charges
-                # Get_charges function need to specify mode of parking
-                if park_mode is None:
-                    raise ValueError("Please provide the parking mode.")
-                element = self.method(mode=park_mode, park_id=id)
+                element = [] 
+                for park_mode in park_modes:
+                    charge = self.method(park_id=id, mode=park_mode)
+                    if isinstance(charge, list):
+                        element.extend(charge)
+                    elif isinstance(charge, dict):
+                        element.append(charge)
             else:
                 if info == "vacancy":
                     self.method = self.get_vacancy
@@ -321,21 +371,93 @@ class CarparkScraper(Scraper):
                 elif info == "address":
                     self.method = self.get_address
                 element = self.method(park_id=id)
-            jsons.append(element)
-            
-        jsons_str = json.dumps(jsons)
+            if isinstance(element, list):
+                info_list.extend(element)
+            elif isinstance(element, dict):
+                info_list.append(element)
 
-        # Add new folders of vehicle types into the directory to separate data
-        destination = os.path.join(destination, self.vehicle_type)
+        # Define the datatype
+        datatype = {
+            "park_id": "str",
+            "type": "category",
+            "weekdays": "string",
+            "exclude_public_holiday": bool,
+            "period_start": "string",
+            "period_end": "string",
+            "price": "Int64",
+            "usage_threshold": "string",
+            "covered": "category",
+            "remark": "string",
+            "space": "Int64",
+            "space_dis": "Int64",
+            "space_ev": "Int64",
+            "space_unl": "Int64",
+            "description": "string",
+            "ranges": "string",
+            "reserved": "category",
+            "valid_until": "category",
+            "valid_until_end": "string",
+            "full_address": "string",
+            "floor": "category",
+            "building_name": "string",
+            "street_name": "string",
+            "building_no": "Int64",
+            "sub_district": "string",
+            "dc_district": "string",
+            "region": "string",
+            "height": "float16",
+            "remark": "string",
+            "vehicle_type": "category",
+            "vacancy_type": "string",
+            "vacancy": "int16",
+            "last_update": "string"
+        }
+
+        dataframe = None
+        if info_list:
+            # Replace np.nan with None
+            dataframe = pd.DataFrame(info_list).fillna(np.nan).set_index("park_id")
+        # Quit the function if there is no information in that vehicle type
+        else:
+            return
+
+        # Replace the NaN values in the columns of datatype string 
+        for col in datatype.keys():
+            if col in dataframe.columns:
+                col_datatype = datatype[col]
+                # Replace the NaN values with "" before turning that column into string type
+                if col_datatype in ("string", "category"):
+                    dataframe[col] = dataframe[col].replace(np.nan, "")
+                dataframe.astype({col: datatype[col]})
+        return dataframe
+
+    def save_sqlite(self, destination: str, info: str) -> None:
+        """Saved the dataframe in the sqlite database in the destination"""
+
+        dataframe = self.get_table(info=info)
+        # Do not save if the vehicle type has no such information
+        if dataframe is None:
+            return
+
         # Make the desired destination and continue if the desired destination already exists
         os.makedirs(destination, exist_ok=True)
+        # Create a sqlite table and write with the corresponding table name
+        db_name = os.path.join(destination, f"{self.vehicle_type}.db")
+        with sqlite3.connect(db_name) as conn:
+            dataframe.to_sql(info, conn, if_exists='replace', index=False)
 
-        # Include vehicle type into the destination
-        file_name = os.path.join(destination, info + ".json")
-        with open(file_name, "w") as file:
-            json.dump(jsons_str, file, indent=4)
+    def save_excel(self, destination: str, info:str):
+        """Saved the dataframe in the csv in the destination"""
 
-        return jsons
+        dataframe = self.get_table(info=info)
+        # Do not save if the vehicle type has no such information
+        if dataframe is None:
+            return
+        # Make the desired destination and continue if the desired destination already exists
+        os.makedirs(destination, exist_ok=True)
+        # Create a csv file and write with the corresponding table name
+        csv_name = os.path.join(destination, f"{info}.csv")
+        dataframe.to_csv(csv_name, index=True, encoding="utf-8-sig")
 
 def get_public_holiday() -> np.ndarray:
     # Define a ph_dict to hold all the public holidays
@@ -368,13 +490,15 @@ def get_public_holiday() -> np.ndarray:
 
 if __name__ == "__main__":
     # Initialize the vehicle type
-    pc = CarparkScraper(vehicle_type="privateCar")
+    pc = CarparkScraper(vehicle_type="LGV")
     # Get data before retrieving data
     pc.get_data(data="info")
     # Get vacancy before retrieving data
     pc.get_data(data="vacancy")
     
+    info_list = ["address", "basic_info", "height_limits", "opening_hours", "grace_periods", "vacancy", "charges"]
     folder_path = "./data"
-    new_json = pc.save_json(info="address", destination=folder_path)
-
+    for info in info_list:
+        table = pc.save_excel(info=info, destination=folder_path)
+    
     pass
