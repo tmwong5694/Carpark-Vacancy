@@ -205,7 +205,7 @@ class CarparkScraper(Scraper):
         """Takes in the park_id and returns the grace periods of that car park."""
         carpark = pd.DataFrame(self.info).set_index("park_Id").loc[str(park_id)]
         grace_periods = []
-        if not carpark.get("gracePeriods") is None:
+        if not carpark.get("gracePeriods") is np.nan:
             # Iterate through all the grace periods
             for period in carpark.get("gracePeriods"):
                 grace_period = {
@@ -244,7 +244,6 @@ class CarparkScraper(Scraper):
                     "exclude_public_holiday": hour.get("excludePublicHoliday"),
                     "period_start": hour.get("periodStart"),
                     "period_end": hour.get("periodEnd")
-
                 }
                 opening_hours.append(opening_hour)
         return opening_hours
@@ -378,7 +377,7 @@ class CarparkScraper(Scraper):
 
         # Define the datatype
         datatype = {
-            "park_id": "str",
+            "park_id": "string",
             "type": "category",
             "weekdays": "string",
             "exclude_public_holiday": bool,
@@ -410,13 +409,16 @@ class CarparkScraper(Scraper):
             "vehicle_type": "category",
             "vacancy_type": "string",
             "vacancy": "int16",
-            "last_update": "string"
+            "last_update": "string",
+            "create_date": "datetime64[ns]",
+            "modified_date": "datetime64[ns]",
+            "published_date": "datetime64[ns]"
         }
 
         dataframe = None
         if info_list:
             # Replace np.nan with None
-            dataframe = pd.DataFrame(info_list).fillna(np.nan).set_index("park_id")
+            dataframe = pd.DataFrame(info_list).fillna(np.nan)
         # Quit the function if there is no information in that vehicle type
         else:
             return
@@ -424,6 +426,10 @@ class CarparkScraper(Scraper):
         # Replace the NaN values in the columns of datatype string 
         for col in datatype.keys():
             if col in dataframe.columns:
+                if col in ("period_end", "period_start", "valid_until_end", "last_update"):
+                    # Convert the columns to datetime type
+                    dataframe[col] = dataframe[col].replace("24:00", "00:00")
+
                 col_datatype = datatype[col]
                 # Replace the NaN values with "" before turning that column into string type
                 if col_datatype in ("string", "category"):
@@ -435,9 +441,24 @@ class CarparkScraper(Scraper):
         """Saved the dataframe in the sqlite database in the destination"""
 
         dataframe = self.get_table(info=info)
+
         # Do not save if the vehicle type has no such information
         if dataframe is None:
             return
+        dtypes = {
+            "period_start": "string",
+            "period_end": "string",
+            "valid_until_end": "string",
+            "last_update": "string",
+            "create_date": "string",
+            "modified_date": "string",
+            "published_date": "string"
+        }
+        for col in dtypes.keys():
+            try:
+                dataframe.astype({col: dtypes[col]})
+            except Exception:
+                continue
 
         # Make the desired destination and continue if the desired destination already exists
         os.makedirs(destination, exist_ok=True)
@@ -446,7 +467,7 @@ class CarparkScraper(Scraper):
         with sqlite3.connect(db_name) as conn:
             dataframe.to_sql(info, conn, if_exists='replace', index=False)
 
-    def save_excel(self, destination: str, info:str):
+    def save_csv(self, destination: str, info: str):
         """Saved the dataframe in the csv in the destination"""
 
         dataframe = self.get_table(info=info)
@@ -457,7 +478,7 @@ class CarparkScraper(Scraper):
         os.makedirs(destination, exist_ok=True)
         # Create a csv file and write with the corresponding table name
         csv_name = os.path.join(destination, f"{info}.csv")
-        dataframe.to_csv(csv_name, index=True, encoding="utf-8-sig")
+        dataframe.set_index("park_id").to_csv(csv_name, index=True, encoding="utf-8-sig")
 
 def get_public_holiday() -> np.ndarray:
     # Define a ph_dict to hold all the public holidays
@@ -490,7 +511,7 @@ def get_public_holiday() -> np.ndarray:
 
 if __name__ == "__main__":
     # Initialize the vehicle type
-    pc = CarparkScraper(vehicle_type="LGV")
+    pc = CarparkScraper(vehicle_type="privateCar")
     # Get data before retrieving data
     pc.get_data(data="info")
     # Get vacancy before retrieving data
@@ -499,6 +520,6 @@ if __name__ == "__main__":
     info_list = ["address", "basic_info", "height_limits", "opening_hours", "grace_periods", "vacancy", "charges"]
     folder_path = "./data"
     for info in info_list:
-        table = pc.save_excel(info=info, destination=folder_path)
+        table = pc.save_csv(info=info, destination=folder_path)
     
     pass
